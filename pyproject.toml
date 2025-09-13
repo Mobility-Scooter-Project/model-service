@@ -9,16 +9,32 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "python-dotenv (>=1.1.1,<2.0.0)",
-    "fastapi[standard] (>=0.116.1,<0.117.0)"
+    "fastapi[standard] (>=0.116.1,<0.117.0)",
+    "importlib (>=1.0.4,<2.0.0)"
 ]
 
 [tool.poetry]
 package-mode = false
 
+# ---- Runtime Dependencies ---- 
+[tool.poetry.group.pytorch]
+optional = true
+
 [tool.poetry.group.pytorch.dependencies]
+torch = { version = "^2.7.1", source = "torch_cuda" }
+
+[tool.poetry.group.gpu.dependencies]
+torch = { version = "^2.7.1", source = "torch_cuda" }
 
 [tool.poetry.group.yolo.dependencies]
+ultralytics = "^8.3.199"
 
+[[tool.poetry.source]]
+name = "torch_cuda"
+url = "https://download.pytorch.org/whl/cu128"
+priority = "supplemental"
+
+# ---- Model Specific Dependencies ----
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
