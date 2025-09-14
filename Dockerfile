@@ -1,5 +1,3 @@
-ARG MODEL_NAME
-
 FROM python:3.12-slim AS base
 
 # install poetry
@@ -23,6 +21,9 @@ RUN poetry install --with pytorch
 FROM pytorch-builder AS pytorch
 ARG MODEL_NAME
 COPY --from=base /app /app/
+COPY . .
 
 RUN poetry install --with ${MODEL_NAME}
-CMD ["poetry", "run", "python3", "-m", "src/main.py"]
+
+EXPOSE 8000
+CMD ["poetry", "run", "fastapi", "run", "src/main.py"]

@@ -1,0 +1,135 @@
+name: Build and Push Models
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'src/lib/model/**'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  discover-changed-models:
+    runs-on: ubuntu-latest
+    outputs:
+      models: ${{ steps.set-changed-models.outputs.models }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed files
+        id: changed-files
+        run: |
+          # Check if git is available
+          if command -v git >/dev/null 2>&1; then
+            if [ "${{ github.event_name }}" = "push" ]; then
+              # For push events, compare with the previous commit
+              changed_files=$(git diff --name-only HEAD~1 HEAD)
+            else
+              # Fallback for other events
+              changed_files=$(git diff --name-only origin/main...HEAD)
+            fi
+          else
+            # Fallback when git is not available (e.g., in gh act)
+            echo "Git not available, assuming all model files changed"
+            changed_files=$(find src/lib/model -name "*.py" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" | head -10)
+          fi
+          echo "Changed files:"
+          echo "$changed_files"
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$changed_files" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Discover changed model directories
+        id: set-changed-models
+        run: |
+          # Get all model directories
+          all_models=$(find src/lib/model -mindepth 1 -maxdepth 1 -type d ! -name "__pycache__" -exec basename {} \;)
+          
+          # Filter models that have changes
+          changed_models=()
+          while IFS= read -r model; do
+            if echo "${{ steps.changed-files.outputs.changed_files }}" | grep -q "src/lib/model/$model/"; then
+              changed_models+=("$model")
+              echo "Model $model has changes"
+            fi
+          done <<< "$all_models"
+          
+          # Convert to JSON array - ensure proper formatting
+          if [ ${#changed_models[@]} -eq 0 ]; then
+            models_json="[]"
+          else
+            # Create properly formatted JSON array
+            models_json="["
+            for i in "${!changed_models[@]}"; do
+              if [ $i -gt 0 ]; then
+                models_json="$models_json,"
+              fi
+              models_json="$models_json\"${changed_models[$i]}\""
+            done
+            models_json="$models_json]"
+          fi
+          
+          echo "Changed models: $models_json"
+          echo "models=$models_json" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    needs: discover-changed-models
+    runs-on: ubuntu-latest
+    if: ${{ needs.discover-changed-models.outputs.models != '[]' }}
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    strategy:
+      matrix:
+        model: ${{ fromJson(needs.discover-changed-models.outputs.models) }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.model }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=${{ github.head_ref }}
+            type=ref,event=tag,prefix=v
+            type=semver,pattern={{version}}
+            type=sha
+            ${{ github.ref_name == 'main' && 'latest' || '' }}
+      
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: .
+          target: pytorch
+          build-args: |
+            MODEL_NAME=${{ matrix.model }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.model }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
