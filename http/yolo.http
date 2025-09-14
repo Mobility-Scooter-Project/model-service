@@ -1,4 +1,4 @@
-POST http://localhost:8000/api/v1/predict?fields=boxes,masks,names,keypoints
+POST http://localhost:8000/predict?fields=boxes,masks,names,keypoints
 Content-Type: application/json
 
 {

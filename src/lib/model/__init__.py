@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import TypedDict, Dict, List, Any
+import torch
 
 class ModelError(TypedDict):
     message: str
@@ -10,9 +11,11 @@ class ModelResult(TypedDict):
     error: ModelError | None
 
 class ModelWrapper(ABC):
-    def __init__(self, model_name, output_fields = []):
+    def __init__(self, model_name, batch_size=32, output_fields = []):
         self.model_name = model_name
         self.output_fields = output_fields
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.batch_size = batch_size
         
     @abstractmethod
     def load_model(self):

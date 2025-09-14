@@ -1,0 +1,6 @@
+POST http://localhost:8000/predict
+Content-Type: application/json
+
+{
+    "input": "https://drive.google.com/uc?export=download&id=1UXJXcOJtJG79vHrH8OgxT83kCMHEfvR4"
+}
