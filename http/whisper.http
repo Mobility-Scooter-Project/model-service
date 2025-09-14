@@ -2,5 +2,5 @@ POST http://localhost:8000/predict
 Content-Type: application/json
 
 {
-    "input": "https://drive.google.com/uc?export=download&id=1UXJXcOJtJG79vHrH8OgxT83kCMHEfvR4"
+    "input": "https://js2.jetstream-cloud.org:8001/swift/v1/public/sample.m4a"
 }
