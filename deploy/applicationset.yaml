@@ -19,7 +19,7 @@ spec:
       annotations:
         argocd-image-updater.argoproj.io/write-back-method: argocd
         argocd-image-updater.argoproj.io/image-list: | 
-          model-service=ghcr.io/mobility-scooter-project/model-service/{{path.basename}}
+          model-service-tag=ghcr.io/mobility-scooter-project/model-service/{{path.basename}}
         argocd-image-updater.argoproj.io/update-strategy: digest 
     spec:
       destination:
@@ -35,8 +35,8 @@ spec:
               name: model-{{path.basename}}
               replicas: 1
               image:
-                repository: model-service
-                tag: 'latest'
+                repository: ghcr.io/mobility-scooter-project/model-service/model-service-tag
+                tag: latest
                 pullPolicy: IfNotPresent
 
               resources:
