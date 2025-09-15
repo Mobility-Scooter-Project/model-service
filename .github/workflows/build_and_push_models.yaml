@@ -5,6 +5,7 @@ on:
     branches:
       - develop
       - main
+      - bryan/deployment
     paths:
       - "src/lib/model/**"
       - ".github/workflows/build_and_push_models.yaml"
@@ -29,7 +30,7 @@ env:
 
 jobs:
   discover-changed-models:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     outputs:
       models: ${{ steps.set-changed-models.outputs.models }}
     steps:
