@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - 'src/lib/model/**'
+      - '.github/workflows/build_and_push_models.yaml'
+      - 'Dockerfile'
 
 env:
   REGISTRY: ghcr.io
