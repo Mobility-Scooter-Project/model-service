@@ -7,7 +7,7 @@ spec:
   generators:
   - git:
       repoURL: 'https://github.com/Mobility-Scooter-Project/model-service.git'
-      revision: bryan/model-service
+      revision: bryan/deployment
       directories:
       - path: "src/lib/model/*"
       - path: "src/lib/model/__pycache__"
