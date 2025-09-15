@@ -45,6 +45,7 @@ spec:
               ingress:
                 enabled: true
                 subdomain: "models.mobility-scooter-project.org"
+                prefix: "/api/v1/{{path.basename}}"
 
               database:
                 enabled: false
