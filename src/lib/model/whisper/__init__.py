@@ -53,3 +53,4 @@ class whisper(ModelWrapper):
             res["error"] = {"message": str(e), "status_code": 500}
         finally:
             return res
+        

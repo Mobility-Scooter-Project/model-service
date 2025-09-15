@@ -27,3 +27,4 @@ class ModelWrapper(ABC):
     
     def __str__(self):
         return f"Model Name: {self.model_name} Output Fields: {self.output_fields}"
+    
