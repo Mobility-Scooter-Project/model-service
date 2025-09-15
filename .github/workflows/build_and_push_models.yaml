@@ -141,7 +141,10 @@ jobs:
   build-and-push:
     needs: discover-changed-models
     runs-on: arc-runner-set
-
+    container:
+      image: ubuntu:22.04
+      options: --user root
+      
     if: ${{ needs.discover-changed-models.outputs.models != '[]' }}
     permissions:
       contents: read
@@ -157,6 +160,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: kubernetes
 
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
@@ -181,8 +189,6 @@ jobs:
             org.opencontainers.image.title=${{ matrix.model }}
             org.opencontainers.image.description=Model service for ${{ matrix.model }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker image
         id: build
