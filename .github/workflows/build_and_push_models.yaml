@@ -30,7 +30,7 @@ env:
 
 jobs:
   discover-changed-models:
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     outputs:
       models: ${{ steps.set-changed-models.outputs.models }}
     steps:
@@ -140,7 +140,7 @@ jobs:
 
   build-and-push:
     needs: discover-changed-models
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     if: ${{ needs.discover-changed-models.outputs.models != '[]' }}
     permissions:
       contents: read
