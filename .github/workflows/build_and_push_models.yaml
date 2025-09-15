@@ -25,6 +25,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  BUILDKIT_PROGRESS: plain
 
 jobs:
   discover-changed-models:
@@ -146,6 +147,8 @@ jobs:
       attestations: write
       id-token: write
     strategy:
+      fail-fast: false
+      max-parallel: 3
       matrix:
         model: ${{ fromJson(needs.discover-changed-models.outputs.models) }}
 
@@ -193,10 +196,12 @@ jobs:
           target: final
           build-args: |
             MODEL_NAME=${{ matrix.model }}
+          provenance: false
+          outputs: type=image,oci-mediatypes=true,compression=gzip,compression-level=6
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/${{ steps.docker-config.outputs.model_name }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.model }}
+          subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true

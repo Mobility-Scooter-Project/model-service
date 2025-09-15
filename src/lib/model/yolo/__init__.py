@@ -1,4 +1,4 @@
-from ... import ModelWrapper, ModelResult, ModelError
+from .. import ModelWrapper, ModelResult, ModelError
 from ultralytics import YOLO
 
 class yolo(ModelWrapper):

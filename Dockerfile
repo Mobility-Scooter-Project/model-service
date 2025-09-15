@@ -1,7 +1,7 @@
 FROM python:3.12-slim AS base
 
-# install system dependencies for OpenCV and other libraries
-RUN apt-get update && apt-get install -y \
+# Install system dependencies in one layer and clean up in same layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libgl1 \
     libglib2.0-0 \
@@ -12,35 +12,44 @@ RUN apt-get update && apt-get install -y \
     libgthread-2.0-0 \
     ffmpeg \
     libfontconfig1 \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/archives/*
 
-# install poetry
-ENV POETRY_HOME=/opt/poetry \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_IN_PROJECT=1 \
-    POETRY_VIRTUALENVS_CREATE=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
-
-RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=$POETRY_HOME python3 - && \
-	$POETRY_HOME/bin/poetry --version
-ENV PATH="$POETRY_HOME/bin:$PATH"
-
-# set work directory
+# Set work directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml poetry.lock ./ 
-
-RUN poetry install --no-root && rm -rf $POETRY_CACHE_DIR
+COPY ./ .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    find /usr/local/lib/python3.12/site-packages -name "*.pyc" -delete && \
+    find /usr/local/lib/python3.12/site-packages -name "__pycache__" -type d -exec rm -rf {} + || true
 
 FROM base AS model-deps
 ARG MODEL_NAME
 
+# Copy model requirements and install
 COPY src/lib/model/${MODEL_NAME}/requirements.txt src/lib/model/${MODEL_NAME}/requirements.txt
-RUN pip install -r src/lib/model/${MODEL_NAME}/requirements.txt --no-cache-dir
+RUN pip install --no-cache-dir -r src/lib/model/${MODEL_NAME}/requirements.txt && \
+    find /usr/local/lib/python3.12/site-packages -name "*.pyc" -delete && \
+    find /usr/local/lib/python3.12/site-packages -name "__pycache__" -type d -exec rm -rf {} + || true
 
 FROM model-deps AS final
-# copy project files
-COPY . .
 
-CMD ["poetry", "run", "fastapi", "run", "src/main.py" ]
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+# Copy application code
+COPY --chown=appuser:appuser . .
+
+# Expose port
+EXPOSE 8000
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/info || exit 1
+
+ENV MODEL_NAME=${MODEL_NAME}
+# Use exec form for better signal handling
+CMD ["fastapi", "run", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]

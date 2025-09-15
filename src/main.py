@@ -8,34 +8,24 @@ import os
 load_dotenv()
 
 MODEL_NAME = os.environ.get("MODEL_NAME")
-RUNTIME = os.environ.get("RUNTIME", "pytorch")  # Default to pytorch for backward compatibility
 
 if not MODEL_NAME:
     raise ValueError("missing MODEL_NAME")
 
-def load_model_class(model_name: str, runtime: str = "pytorch"):
+def load_model_class(model_name: str):
     """
-    Load model class with support for runtime-organized structure.
-    First tries runtime-organized structure, falls back to flat structure for backward compatibility.
+    Load model class from flat structure: src.lib.model.model_name
     """
-    # Try runtime-organized structure first: src.lib.model.pytorch.yolo
-    try:
-        module = importlib.import_module(f".lib.model.{runtime}.{model_name}", package="src")
-        return getattr(module, model_name)()
-    except (ModuleNotFoundError, AttributeError):
-        pass
-    
-    # Fallback to flat structure for backward compatibility: src.lib.model.yolo
     try:
         module = importlib.import_module(f".lib.model.{model_name}", package="src")
         return getattr(module, model_name)()
     except (ModuleNotFoundError, AttributeError):
         pass
     
-    raise ValueError(f"model {model_name} not found in runtime {runtime} or flat structure")
+    raise ValueError(f"model {model_name} not found")
 
 try:
-    model: ModelWrapper = load_model_class(MODEL_NAME, RUNTIME)
+    model: ModelWrapper = load_model_class(MODEL_NAME)
 except ValueError as e:
     raise e
 
