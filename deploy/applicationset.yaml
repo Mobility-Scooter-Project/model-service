@@ -43,9 +43,7 @@ spec:
                   memory: "2Gi"
               
               ingress:
-                enabled: true
-                subdomain: "models.mobility-scooter-project.org"
-                prefix: "/api/v1/{{path.basename}}"
+                enabled: false
 
               database:
                 enabled: false
