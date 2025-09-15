@@ -6,9 +6,22 @@ on:
       - develop
       - main
     paths:
-      - 'src/lib/model/**'
-      - '.github/workflows/build_and_push_models.yaml'
-      - 'Dockerfile'
+      - "src/lib/model/**"
+      - ".github/workflows/build_and_push_models.yaml"
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "poetry.lock"
+  workflow_dispatch:
+    inputs:
+      rebuild_all:
+        description: "Rebuild all models (ignore change detection)"
+        required: false
+        default: false
+        type: boolean
+      specific_models:
+        description: "Specific models to build (comma-separated, e.g., yolo,whisper)"
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -23,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Get changed files
         id: changed-files
         run: |
@@ -46,27 +59,70 @@ jobs:
           echo "changed_files<<EOF" >> $GITHUB_OUTPUT
           echo "$changed_files" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-      
-      - name: Discover changed model directories
+
+      - name: Discover changed models
         id: set-changed-models
         run: |
-          # Get all model directories
-          all_models=$(find src/lib/model -mindepth 1 -maxdepth 1 -type d ! -name "__pycache__" -exec basename {} \;)
-          
-          # Filter models that have changes
-          changed_models=()
-          while IFS= read -r model; do
-            if echo "${{ steps.changed-files.outputs.changed_files }}" | grep -q "src/lib/model/$model/"; then
-              changed_models+=("$model")
-              echo "Model $model has changes"
+          # Get all model directories (flat structure)
+          all_models=()
+          for model_dir in src/lib/model/*/; do
+            if [ -d "$model_dir" ] && [[ ! "$(basename "$model_dir")" == "__pycache__" ]]; then
+              model=$(basename "$model_dir")
+              # Only include models that have a requirements.txt file
+              if [ -f "$model_dir/requirements.txt" ]; then
+                all_models+=("$model")
+              else
+                echo "Warning: Model $model has no requirements.txt, skipping"
+              fi
             fi
-          done <<< "$all_models"
-          
-          # Convert to JSON array - ensure proper formatting
+          done
+
+          # Handle manual triggers
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ github.event.inputs.rebuild_all }}" = "true" ]; then
+              echo "Manual trigger: rebuilding ALL models"
+              changed_models=("${all_models[@]}")
+            elif [ -n "${{ github.event.inputs.specific_models }}" ]; then
+              echo "Manual trigger: building specific models"
+              IFS=',' read -ra input_models <<< "${{ github.event.inputs.specific_models }}"
+              changed_models=()
+              for input_model in "${input_models[@]}"; do
+                input_model=$(echo "$input_model" | xargs) # trim whitespace
+                # Check if model exists
+                if [[ " ${all_models[@]} " =~ " $input_model " ]]; then
+                  changed_models+=("$input_model")
+                else
+                  echo "Warning: Model $input_model not found or has no requirements.txt"
+                fi
+              done
+            else
+              echo "Manual trigger: no models specified"
+              changed_models=()
+            fi
+          else
+            # Automatic trigger based on file changes
+            changed_files="${{ steps.changed-files.outputs.changed_files }}"
+            
+            # Check if Dockerfile, dependencies, or workflow changed - if so, rebuild ALL models
+            if echo "$changed_files" | grep -qE "(Dockerfile|pyproject\.toml|poetry\.lock|\.github/workflows/build_and_push_models\.yaml)"; then
+              echo "Infrastructure files changed - rebuilding ALL models"
+              changed_models=("${all_models[@]}")
+            else
+              # Only specific model directories changed
+              changed_models=()
+              for model in "${all_models[@]}"; do
+                if echo "$changed_files" | grep -q "src/lib/model/$model/"; then
+                  changed_models+=("$model")
+                  echo "Model $model has changes"
+                fi
+              done
+            fi
+          fi
+
+          # Convert to JSON array (simple string array now)
           if [ ${#changed_models[@]} -eq 0 ]; then
             models_json="[]"
           else
-            # Create properly formatted JSON array
             models_json="["
             for i in "${!changed_models[@]}"; do
               if [ $i -gt 0 ]; then
@@ -76,7 +132,7 @@ jobs:
             done
             models_json="$models_json]"
           fi
-          
+
           echo "Changed models: $models_json"
           echo "models=$models_json" >> $GITHUB_OUTPUT
 
@@ -92,11 +148,11 @@ jobs:
     strategy:
       matrix:
         model: ${{ fromJson(needs.discover-changed-models.outputs.models) }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
@@ -116,22 +172,31 @@ jobs:
             type=semver,pattern={{version}}
             type=sha
             ${{ github.ref_name == 'main' && 'latest' || '' }}
-      
+          labels: |
+            org.opencontainers.image.title=${{ matrix.model }}
+            org.opencontainers.image.description=Model service for ${{ matrix.model }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push Docker image
-        id: push
+        id: build
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
         with:
           context: .
-          target: pytorch
-          build-args: |
-            MODEL_NAME=${{ matrix.model }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: final
+          build-args: |
+            MODEL_NAME=${{ matrix.model }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.model }}
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/${{ steps.docker-config.outputs.model_name }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true

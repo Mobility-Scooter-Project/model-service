@@ -1,4 +1,4 @@
-from .. import ModelWrapper, ModelResult
+from ... import ModelWrapper, ModelResult
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 import requests
 import os
