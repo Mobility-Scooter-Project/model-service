@@ -30,8 +30,8 @@ spec:
               name: model-{{path.basename}}
               replicas: 1
               image:
-                repository: ghcr.io/mobility-scooter-project/model-service
-                tag: '{{path.basename}}'
+                repository: ghcr.io/mobility-scooter-project/model-service/{{path.basename}}
+                tag: 'latest'
                 pullPolicy: IfNotPresent
 
               resources:
