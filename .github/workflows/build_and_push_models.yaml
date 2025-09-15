@@ -141,10 +141,7 @@ jobs:
   build-and-push:
     needs: discover-changed-models
     runs-on: arc-runner-set
-    container:
-      image: ubuntu:22.04
-      options: --user root
-      
+
     if: ${{ needs.discover-changed-models.outputs.models != '[]' }}
     permissions:
       contents: read
