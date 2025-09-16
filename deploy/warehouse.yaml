@@ -9,3 +9,7 @@ spec:
       repoURL: ghcr.io/mobility-scooter-project/model-service/whisper
       imageSelectionStrategy: Digest
       constraint: latest
+  - image:
+      repoURL: ghcr.io/mobility-scooter-project/model-service/yolo
+      imageSelectionStrategy: Digest
+      constraint: latest
