@@ -19,11 +19,10 @@ spec:
       annotations:
         argocd-image-updater.argoproj.io/write-back-method: argocd
         argocd-image-updater.argoproj.io/image-list: |
-          image=ghcr.io/mobility-scooter-project/model-service/{{path.basename}}
+          model-service-{{path.basename}}=ghcr.io/mobility-scooter-project/model-service/{{path.basename}}:latest
         argocd-image-updater.argoproj.io/update-strategy: digest
-        argocd-image-updater.argoproj.io/image.helm.image-name: image.repository
-        argocd-image-updater.argoproj.io/image.helm.image-tag: image.tag
-        argocd-image-updater.argoproj.io/image.allow-tags: regexp:^bryan-deployment$|^main$|^sha-[a-f0-9]{7}$
+        argocd-image-updater.argoproj.io/model-service-{{path.basename}}.helm.image-name: image.repository
+        argocd-image-updater.argoproj.io/model-service-{{path.basename}}.helm.image-tag: image.tag
     spec:
       destination:
         namespace: model-service
