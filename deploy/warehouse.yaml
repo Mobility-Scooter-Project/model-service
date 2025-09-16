@@ -1,0 +1,9 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: model-service-warehouse
+  namespace: msp
+spec:
+  subscriptions:
+  - image:
+      repoURL: ghcr.io/mobility-scooter-project/model-service/whisper

@@ -16,12 +16,6 @@ spec:
     metadata:
       name: "model-service-{{path.basename}}"
       namespace: argocd
-      annotations:
-        argocd-image-updater.argoproj.io/write-back-method: argocd
-        argocd-image-updater.argoproj.io/image-list: |
-          model-service=ghcr.io/mobility-scooter-project/model-service/{{path.basename}}:latest
-        argocd-image-updater.argoproj.io/update-strategy: digest
-        argocd-image-updater.argoproj.io/ghcr.io/model-service.helm-tag: image.tag
     spec:
       destination:
         namespace: model-service
