@@ -7,3 +7,4 @@ spec:
   subscriptions:
   - image:
       repoURL: ghcr.io/mobility-scooter-project/model-service/whisper
+      allowTags: latest
