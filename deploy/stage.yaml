@@ -20,4 +20,4 @@ spec:
         - name: appName
           value: model-service-whisper
         - name: imageName
-          value: whisper
+          value: model-service/whisper
