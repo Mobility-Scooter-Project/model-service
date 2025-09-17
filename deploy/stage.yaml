@@ -12,12 +12,12 @@ spec:
       direct: true
   promotionTemplate:
     spec:
-      variables:
-        - name: appName
-          value: model-service-whisper
-        - name: imageName
-          value: whisper
       steps:
       - task:
           kind: ClusterPromotionTask
           name: update-argocd-app
+        vars:
+        - name: appName
+          value: model-service-whisper
+        - name: imageName
+          value: whisper
