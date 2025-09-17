@@ -13,8 +13,9 @@ spec:
   promotionTemplate:
     spec:
       steps:
-      - task: update-argocd-app
-        kind: ClusterPromotionTask
+      - task:
+          kind: ClusterPromotionTask
+          name: update-argocd-app
         config:
           appName: model-service-whisper
           imageName: whisper
