@@ -1,55 +1,30 @@
-FROM python:3.12-slim AS base
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS base
 
-# Install system dependencies in one layer and clean up in same layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libgomp1 \
-    libgthread-2.0-0 \
-    ffmpeg \
-    libfontconfig1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/apt/archives/*
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_TOOL_BIN_DIR=/usr/local/bin
 
-# Set work directory
 WORKDIR /app
+    
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=requirements.txt,target=requirements.txt \
+    uv venv && uv pip install -r requirements.txt
 
-COPY ./ .
-RUN pip install --no-cache-dir -r requirements.txt && \
-    find /usr/local/lib/python3.12/site-packages -name "*.pyc" -delete && \
-    find /usr/local/lib/python3.12/site-packages -name "__pycache__" -type d -exec rm -rf {} + || true
-
-FROM base AS model-deps
+FROM base AS final
 ARG MODEL_NAME
 
-# Copy model requirements and install
-COPY src/lib/model/${MODEL_NAME}/requirements.txt src/lib/model/${MODEL_NAME}/requirements.txt
-RUN pip install --no-cache-dir -r src/lib/model/${MODEL_NAME}/requirements.txt && \
-    find /usr/local/lib/python3.12/site-packages -name "*.pyc" -delete && \
-    find /usr/local/lib/python3.12/site-packages -name "__pycache__" -type d -exec rm -rf {} + || true
+WORKDIR /app
 
-FROM model-deps AS final
+COPY --from=base /app/.venv /.venv
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser && \
-    chown -R appuser:appuser /app
-USER appuser
+COPY ./src ./src
 
-# Copy application code
-COPY --chown=appuser:appuser . .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r src/model/${MODEL_NAME}/requirements.txt
 
-# Expose port
-EXPOSE 8000
-
-# Add health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/info || exit 1
-
+ENV PATH="/app/.venv/bin:$PATH"
 ENV MODEL_NAME=${MODEL_NAME}
-# Use exec form for better signal handling
+
+ENTRYPOINT []
+
 CMD ["fastapi", "run", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]

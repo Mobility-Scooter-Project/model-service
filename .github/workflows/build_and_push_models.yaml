@@ -6,7 +6,7 @@ on:
       - develop
       - main
     paths:
-      - "src/lib/model/**"
+      - "src/model/**"
       - ".github/workflows/build_and_push_models.yaml"
       - "Dockerfile"
       - "reqirements.txt"
@@ -52,7 +52,7 @@ jobs:
           else
             # Fallback when git is not available (e.g., in gh act)
             echo "Git not available, assuming all model files changed"
-            changed_files=$(find src/lib/model -name "*.py" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" | head -10)
+            changed_files=$(find src/model -name "*.py" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" | head -10)
           fi
           echo "Changed files:"
           echo "$changed_files"
@@ -65,7 +65,7 @@ jobs:
         run: |
           # Get all model directories (flat structure)
           all_models=()
-          for model_dir in src/lib/model/*/; do
+          for model_dir in src/model/*/; do
             if [ -d "$model_dir" ] && [[ ! "$(basename "$model_dir")" == "__pycache__" ]]; then
               model=$(basename "$model_dir")
               # Only include models that have a requirements.txt file
@@ -111,7 +111,7 @@ jobs:
               # Only specific model directories changed
               changed_models=()
               for model in "${all_models[@]}"; do
-                if echo "$changed_files" | grep -q "src/lib/model/$model/"; then
+                if echo "$changed_files" | grep -q "src/model/$model/"; then
                   changed_models+=("$model")
                   echo "Model $model has changes"
                 fi
