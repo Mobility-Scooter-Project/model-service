@@ -46,7 +46,7 @@ spec:
 
               ingress:
                 enabled: true
-                submain: models
+                subdomain: models
                 prefix: "/api/v1/{{path.basename}}"
 
               database:
