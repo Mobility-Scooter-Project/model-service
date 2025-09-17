@@ -17,7 +17,7 @@ spec:
       name: "model-service-{{path.basename}}"
       namespace: argocd
       annotations:
-        kargo.akuity.io/authorized-stage: "msp/model-service-deploy"
+        kargo.akuity.io/authorized-stage: "msp:model-service-deploy"
     spec:
       destination:
         namespace: model-service
