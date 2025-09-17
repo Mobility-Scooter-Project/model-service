@@ -10,3 +10,11 @@ spec:
       name: model-service-warehouse
     sources:
       direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - uses: update-argocd-app
+        kind: ClusterPromotionTask
+        config:
+          appName: model-service-whisper
+          imageName: whisper
