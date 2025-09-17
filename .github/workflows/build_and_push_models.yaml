@@ -5,13 +5,11 @@ on:
     branches:
       - develop
       - main
-      - bryan/deployment
     paths:
       - "src/lib/model/**"
       - ".github/workflows/build_and_push_models.yaml"
       - "Dockerfile"
-      - "pyproject.toml"
-      - "poetry.lock"
+      - "reqirements.txt"
   workflow_dispatch:
     inputs:
       rebuild_all:
