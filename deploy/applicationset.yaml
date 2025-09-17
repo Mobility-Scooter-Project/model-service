@@ -45,7 +45,9 @@ spec:
                   memory: "2Gi"
 
               ingress:
-                enabled: false
+                enabled: true
+                submain: models
+                prefix: "/api/v1/{{path.basename}}"
 
               database:
                 enabled: false
@@ -63,6 +65,16 @@ spec:
               env:
                 - name: MODEL_NAME
                   value: "{{path.basename}}"
+
+              volumes:
+                - name: model-storage
+                  persistentVolumeClaim:
+                    claimName: model-service-pvc
+
+              volumeMounts:
+                - name: model-storage
+                  mountPath: /app/models
+                  subPath: "{{path.basename}}"
       syncPolicy:
         automated:
           prune: true
