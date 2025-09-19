@@ -1,4 +1,4 @@
-POST http://localhost:8000/predict
+POST https://models.cis240470.projects.jetstream-cloud.org/api/v1/whisper/predict
 Content-Type: application/json
 
 {

@@ -38,11 +38,11 @@ spec:
 
               resources:
                 requests:
-                  cpu: "250m"
-                  memory: "512Mi"
-                limits:
                   cpu: "1000m"
-                  memory: "2Gi"
+                  memory: "2GI"
+                limits:
+                  cpu: "2000m"
+                  memory: "4Gi"
 
               ingress:
                 enabled: true
