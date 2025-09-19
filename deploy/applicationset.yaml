@@ -30,7 +30,7 @@ spec:
           helm:
             values: |
               name: model-{{path.basename}}
-              replicas: 1
+              replicas: 2
               image:
                 repository: ghcr.io/mobility-scooter-project/model-service/{{path.basename}}
                 tag: latest
