@@ -67,6 +67,11 @@ spec:
                 - name: MODEL_NAME
                   value: "{{path.basename}}"
 
+              volumes:
+                - name: model-storage
+                  emtpyDir:
+                    sizeLimit: 20Gi
+
               volumeMounts:
                 - name: model-storage
                   mountPath: /app/models
