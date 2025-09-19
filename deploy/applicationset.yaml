@@ -1,0 +1,84 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: model-service
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: "https://github.com/Mobility-Scooter-Project/model-service.git"
+        revision: bryan/deployment
+        directories:
+          - path: "src/model/*"
+          - path: "**/__pycache__"
+            exclude: true
+  template:
+    metadata:
+      name: "model-service-{{path.basename}}"
+      namespace: argocd
+      annotations:
+        kargo.akuity.io/authorized-stage: "msp:model-service-{{path.basename}}-deploy"
+    spec:
+      destination:
+        namespace: model-service
+        server: "https://kubernetes.default.svc"
+      project: default
+      sources:
+        - repoURL: "https://github.com/Mobility-Scooter-Project/mobility-scooter-infra.git"
+          targetRevision: main
+          path: charts/api
+          helm:
+            values: |
+              name: model-{{path.basename}}
+              replicas: 1
+              image:
+                repository: ghcr.io/mobility-scooter-project/model-service/{{path.basename}}
+                tag: latest
+                pullPolicy: IfNotPresent
+
+              resources:
+                requests:
+                  cpu: "1000m"
+                  memory: "2Gi"
+                limits:
+                  cpu: "2000m"
+                  memory: "4Gi"
+
+              ingress:
+                enabled: true
+                subdomain: models
+                prefix: "/api/v1/{{path.basename}}"
+                useRootPath: true
+
+              database:
+                enabled: false
+
+              kv:
+                enabled: false
+
+              queue:
+                enabled: false
+
+              service:
+                port: 8000
+                targetPort: 8000
+
+              env:
+                - name: MODEL_NAME
+                  value: "{{path.basename}}"
+
+              volumes:
+                - name: model-storage
+                  emtpyDir:
+                    sizeLimit: 20Gi
+
+              volumeMounts:
+                - name: model-storage
+                  mountPath: /app/models
+                  subPath: "{{path.basename}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

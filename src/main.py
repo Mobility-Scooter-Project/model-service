@@ -1,4 +1,4 @@
-from .lib.model import ModelWrapper
+from .model import ModelWrapper
 from fastapi import FastAPI, Response, Query
 from dotenv import load_dotenv
 from .lib.validator import PredictBody
@@ -17,12 +17,12 @@ def load_model_class(model_name: str):
     Load model class from flat structure: src.lib.model.model_name
     """
     try:
-        module = importlib.import_module(f".lib.model.{model_name}", package="src")
+        module = importlib.import_module(f".model.{model_name}", package="src")
         return getattr(module, model_name)()
-    except (ModuleNotFoundError, AttributeError):
-        pass
-    
-    raise ValueError(f"model {model_name} not found")
+    except ModuleNotFoundError as e:
+        raise ValueError(f"model {model_name} not found: {e}")
+    except AttributeError as e:
+        raise ValueError(f"model class {model_name} not found or failed to load: {e}")
 
 try:
     model: ModelWrapper = load_model_class(MODEL_NAME)

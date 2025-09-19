@@ -1,7 +1,7 @@
 from .. import ModelWrapper, ModelResult
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 from datetime import datetime
-from ....utils.remote import download_file
+from ...utils.remote import download_file
 
 model_size = "small"
 
@@ -11,7 +11,7 @@ class whisper(ModelWrapper):
         self.model = None
         
     def load_model(self):
-        self.base_model = WhisperModel(model_size, device=self.device, compute_type="float32")
+        self.base_model = WhisperModel(model_size, download_root="models", device=self.device, compute_type="float32")
         self.model = BatchedInferencePipeline(self.base_model)
         
     def predict(self, input, fields = []):
