@@ -69,13 +69,8 @@ spec:
 
               volumes:
                 - name: model-storage
-                  ephemeral:
-                    volumeClaimTemplate:
-                      spec:
-                        accessModes: ["ReadWriteOnce"]
-                        resources:
-                          requests:
-                            storage: 2Gi
+                  persistentVolumeClaim:
+                    claimName: model-service-pvc
 
               volumeMounts:
                 - name: model-storage
