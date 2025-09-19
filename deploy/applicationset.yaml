@@ -67,11 +67,6 @@ spec:
                 - name: MODEL_NAME
                   value: "{{path.basename}}"
 
-              volumes:
-                - name: model-storage
-                  persistentVolumeClaim:
-                    claimName: model-service-pvc
-
               volumeMounts:
                 - name: model-storage
                   mountPath: /app/models
