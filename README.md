@@ -1,7 +1,5 @@
 ## Model Service
 
-### About
-
 This service provides independent model deployment for the Mobility Scooter Project. Each model is containerized as an individual Docker image to allow for granular scaling and decoupling from consumer services. 
 
 This architecture replaces heavier alternatives like [Kubeflow](https://www.kubeflow.org/) to maintain a smaller resource footprint. Scaling in cluster will eventually be handled by [Keda](https://keda.sh/).
@@ -23,5 +21,7 @@ Local development uses a reverse proxy gateway to mimic the production environme
 Deployment to the Kubernetes cluster is fully automated.
 * **CI/CD**: GitHub Actions automatically builds and pushes a new image for any directory changed under `src/model/`.
 * **Deployment**: The ArgoCD ApplicationSet monitors the `src/model/` path and automatically generates a new Kubernetes deployment and ingress for each model.
+
+&nbsp;
 
 ![Seal](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExazMyb3ZsanAxaDRzeTduOWU2enRyNmtlYms0Y2tmMWp6NzY0cXMyMyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/mpAJq0BoNZbig/giphy.gif)
