@@ -23,6 +23,14 @@ services:
     - COMPUTE_TYPE=int8
     volumes:
     - ./.models:/app/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities:
+            - gpu
   yolo:
     build:
       context: .
@@ -35,3 +43,11 @@ services:
     - YOLO_CONFIG_DIR=/app/.cache/yolo
     volumes:
     - ./.models:/app/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities:
+            - gpu

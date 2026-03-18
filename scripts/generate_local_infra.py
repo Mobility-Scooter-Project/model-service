@@ -63,10 +63,23 @@ def generate_infra():
             ],
             "volumes": [
                 "./.models:/app/.cache"
-            ]
+            ],
+            "deploy": {
+                "resources": {
+                    "reservations": {
+                        "devices": [
+                            {
+                                "driver": "nvidia",
+                                "count": "all",
+                                "capabilities": ["gpu"]
+                            }
+                        ]
+                    }
+                }
+            }
         }
         
-        # Add model-specific environment variables if needed
+        # Add model-specific environment variables
         if model == "whisperx":
             model_config["environment"].extend([
                 "HF_TOKEN=${HF_TOKEN}",
