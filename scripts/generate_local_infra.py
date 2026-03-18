@@ -55,7 +55,15 @@ def generate_infra():
                 "context": ".",
                 "args": {"MODEL_NAME": model}
             },
-            "environment": [f"MODEL_NAME={model}"]
+            "environment": [
+                f"MODEL_NAME={model}",
+                "TORCH_HOME=/app/.cache/torch",
+                "HF_HOME=/app/.cache/huggingface",
+                "YOLO_CONFIG_DIR=/app/.cache/yolo"
+            ],
+            "volumes": [
+                "./.models:/app/.cache"
+            ]
         }
         
         # Add model-specific environment variables if needed

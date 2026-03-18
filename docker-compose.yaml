@@ -15,9 +15,14 @@ services:
         MODEL_NAME: whisperx
     environment:
     - MODEL_NAME=whisperx
+    - TORCH_HOME=/app/.cache/torch
+    - HF_HOME=/app/.cache/huggingface
+    - YOLO_CONFIG_DIR=/app/.cache/yolo
     - HF_TOKEN=${HF_TOKEN}
     - WHISPERX_SIZE=base
     - COMPUTE_TYPE=int8
+    volumes:
+    - ./.models:/app/.cache
   yolo:
     build:
       context: .
@@ -25,3 +30,8 @@ services:
         MODEL_NAME: yolo
     environment:
     - MODEL_NAME=yolo
+    - TORCH_HOME=/app/.cache/torch
+    - HF_HOME=/app/.cache/huggingface
+    - YOLO_CONFIG_DIR=/app/.cache/yolo
+    volumes:
+    - ./.models:/app/.cache
