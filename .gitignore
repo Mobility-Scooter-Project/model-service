@@ -1,5 +1,6 @@
 .env
 __pycache__/
 *.jpg
-models/
+*.m4a
+.models/
 .venv

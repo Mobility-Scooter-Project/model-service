@@ -9,6 +9,7 @@ class ModelError(TypedDict):
 class ModelResult(TypedDict):
     data: List | None
     error: ModelError | None
+    metadata: Dict | None
 
 class ModelWrapper(ABC):
     def __init__(self, model_name, batch_size=32, output_fields = []):

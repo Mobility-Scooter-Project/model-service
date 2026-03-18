@@ -3,16 +3,16 @@ from ultralytics import YOLO
 
 class yolo(ModelWrapper):
     def __init__(self):
-        super().__init__("models/yolo11n-pose.pt", output_fields=["boxes", "keypoints", "masks", "names"])
+        super().__init__(".models/yolo11n-pose.pt", output_fields=["boxes", "keypoints", "masks", "names"])
 
     def load_model(self):
-        self.model = YOLO(self.model_name)
+        self.model = YOLO(self.model_name).to(self.device)
 
     def predict(self, input, fields = ["boxes","keypoints","masks","names"]):
         if self.model is None:
             raise ValueError("Model not loaded. Call load_model() before predict().")
         
-        res = ModelResult(data=None, error=None)
+        res = ModelResult(data=None, error=None, metadata={"device": self.device})
         
         try:
             outputs = self.model(input)

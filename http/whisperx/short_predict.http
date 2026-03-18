@@ -1,0 +1,9 @@
+# retrieves formatted transcript of type ModelResult dictionary
+# sample.m4a is hosted in js2 cloud
+
+POST http://localhost:8000/api/v1/whisperx/predict
+Content-Type: application/json
+
+{
+    "input": "https://js2.jetstream-cloud.org:8001/swift/v1/public/sample.m4a"
+}
