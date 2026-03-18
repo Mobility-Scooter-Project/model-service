@@ -1,0 +1,9 @@
+# retrieves formatted transcript of type ModelResult dictionary
+# thanks sol for the voice message -Garrett
+
+POST http://localhost:8000/api/v1/whisperx/predict
+Content-Type: application/json
+
+{
+    "input": "http://172.30.126.109:8080/voice-message.m4a"
+}

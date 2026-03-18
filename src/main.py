@@ -46,7 +46,11 @@ def predict(body: PredictBody, response: Response, fields: str = Query(",".join(
         result = model.predict(body.input, fields.split(','))
         if result["error"]:
             response.status_code = result["error"]["status_code"]
-        return {"data": result["data"], "error": result["error"]} 
+        return {
+            "data": result["data"], 
+            "error": result["error"], 
+            "metadata": result.get("metadata")
+        } 
     except Exception as e:
         response.status_code = 500
         return {"error": str(e), "data": None}   

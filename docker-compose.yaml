@@ -1,0 +1,29 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - yolo
+      - whisperx
+
+  yolo:
+    build:
+      context: .
+      args:
+        - MODEL_NAME=yolo
+    environment:
+      - MODEL_NAME=yolo
+
+  whisperx:
+    build:
+      context: .
+      args:
+        - MODEL_NAME=whisperx
+    environment:
+      - MODEL_NAME=whisperx
+      - HF_TOKEN=${HF_TOKEN}
+      - WHISPERX_SIZE=base
+      - COMPUTE_TYPE=int8
