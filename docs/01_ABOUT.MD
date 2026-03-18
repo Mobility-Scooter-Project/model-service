@@ -4,5 +4,5 @@ This service provides independent model deployment for the Mobility Scooter Proj
 
 This architecture replaces heavier alternatives like [Kubeflow](https://www.kubeflow.org/) to maintain a smaller resource footprint. Scaling in cluster will eventually be handled by [Keda](https://keda.sh/).
 
-
-![About Seal](https://c.tenor.com/SdLIKYn92AIAAAAC/seal-cute.gif)
+![seal](https://c.tenor.com/SdLIKYn92AIAAAAC/seal-cute.gif)
+![hippo](https://media3.giphy.com/media/aUovxH8Vf9qDu/giphy.gif)
