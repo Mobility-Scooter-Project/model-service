@@ -1,3 +1,0 @@
-torch
-faster-whisper
-requests
