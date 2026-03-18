@@ -1,9 +1,17 @@
-# retrieves formatted transcript of type ModelResult dictionary
-# thanks sol for the voice message -Garrett
+@baseUrl = http://localhost:8000/api/v1/whisperx
 
-POST http://localhost:8000/api/v1/whisperx/predict
+# @name submitJob
+POST {{baseUrl}}/predict
 Content-Type: application/json
 
 {
-    "input": "http://172.30.126.109:8080/voice-message.m4a"
+    "input": "https://audio.buzzsprout.com/ztnzctcupk3ki3jczmm9389vqky4?response-content-disposition=inline"
 }
+
+###
+
+# Capture the job_id from the response above
+@jobId = {{submitJob.response.body.job_id}}
+
+# Call this repeatedly to poll for results
+GET {{baseUrl}}/status/{{jobId}}

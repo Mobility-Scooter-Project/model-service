@@ -1,9 +1,10 @@
 from .model import ModelWrapper
-from fastapi import FastAPI, Response, Query
+from fastapi import FastAPI, Response, Query, BackgroundTasks
 from dotenv import load_dotenv
 from .lib.validator import PredictBody
 import importlib
 import os
+import uuid
 
 load_dotenv()
 
@@ -36,21 +37,46 @@ except Exception as e:
 
 app = FastAPI()
 
+jobs = {}
+
+def process_prediction(job_id: str, input_data, fields: list):
+    try:
+        result = model.predict(input_data, fields)
+        jobs[job_id] = {
+            "status": "completed" if not result.get("error") else "failed",
+            "data": result.get("data"),
+            "error": result.get("error"),
+            "metadata": result.get("metadata")
+        }
+    except Exception as e:
+        jobs[job_id] = {
+            "status": "failed",
+            "error": {"message": str(e), "status_code": 500},
+            "data": None,
+            "metadata": None
+        }
+
 @app.get("/info")
 def info():
     return {"data": str(model)}
 
 @app.post("/predict")
-def predict(body: PredictBody, response: Response, fields: str = Query(",".join(model.output_fields))):
-    try:
-        result = model.predict(body.input, fields.split(','))
-        if result["error"]:
-            response.status_code = result["error"]["status_code"]
-        return {
-            "data": result["data"], 
-            "error": result["error"], 
-            "metadata": result.get("metadata")
-        } 
-    except Exception as e:
-        response.status_code = 500
-        return {"error": str(e), "data": None}   
+def predict(body: PredictBody, background_tasks: BackgroundTasks, fields: str = Query(",".join(model.output_fields))):
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {"status": "processing"}
+    
+    background_tasks.add_task(process_prediction, job_id, body.input, fields.split(','))
+    
+    return {"job_id": job_id, "status": "processing"}
+
+@app.get("/status/{job_id}")
+def get_status(job_id: str, response: Response):
+    job = jobs.get(job_id)
+    if not job:
+        response.status_code = 404
+        return {"error": {"message": "Job not found", "status_code": 404}, "status": "not_found"}
+    
+    if job.get("error"):
+        response.status_code = job["error"].get("status_code", 500)
+        
+    return job
