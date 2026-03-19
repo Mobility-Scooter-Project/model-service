@@ -1,98 +1,142 @@
 import os
-import yaml
 
-# Configuration
 MODEL_DIR = "src/model"
-NGINX_CONF_PATH = "nginx.conf"
-DOCKER_COMPOSE_PATH = "docker-compose.yaml"
-HTTP_PORT = 8000
+K8S_OUT_DIR = "k8s"
 
-def generate_infra():
-    # 1. Discover models (must have an __init__.py and requirements.txt)
+def generate_k8s_infra():
     models = []
-    for entry in os.scandir(MODEL_DIR):
-        if entry.is_dir():
-            if os.path.exists(os.path.join(entry.path, "__init__.py")) and \
-               os.path.exists(os.path.join(entry.path, "requirements.txt")):
-                models.append(entry.name)
+    if os.path.exists(MODEL_DIR):
+        for entry in os.scandir(MODEL_DIR):
+            if entry.is_dir() and entry.name != "__pycache__":
+                if os.path.exists(os.path.join(entry.path, "__init__.py")) and \
+                   os.path.exists(os.path.join(entry.path, "requirements.txt")):
+                    models.append(entry.name)
 
-    print(f"Detected models: {models}")
+    os.makedirs(K8S_OUT_DIR, exist_ok=True)
 
-    # 2. Generate nginx.conf
-    nginx_lines = ["server {", f"    listen {HTTP_PORT};", ""]
+    prefixes = "\n".join([f"      - /api/v1/{m}" for m in models])
+    routes = "\n".join([f"""    - http:
+        paths:
+          - path: /api/v1/{m}/
+            pathType: Prefix
+            backend:
+              service:
+                name: {m}-svc
+                port: 
+                  number: 8000""" for m in models])
+
+    ingress_manifest = f"""apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: api-strip-prefix
+spec:
+  stripPrefix:
+    prefixes:
+{prefixes}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: model-service-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: default-api-strip-prefix@kubernetescrd
+spec:
+  rules:
+{routes}
+"""
+    with open(os.path.join(K8S_OUT_DIR, "ingress.yaml"), "w") as f:
+        f.write(ingress_manifest)
+
     for model in models:
-        nginx_lines.extend([
-            f"    # {model.upper()} Routing",
-            f"    location /api/v1/{model}/ {{",
-            f"        proxy_pass http://{model}:{HTTP_PORT}/;",
-            "        proxy_set_header Host $host;",
-            "        proxy_set_header X-Real-IP $remote_addr;",
-            "        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
-            "        proxy_set_header X-Forwarded-Proto $scheme;",
-            "    }",
-            ""
-        ])
-    nginx_lines.append("}")
-    
-    with open(NGINX_CONF_PATH, "w") as f:
-        f.write("\n".join(nginx_lines))
+        env_vars = f"""            - name: MODEL_NAME
+              value: "{model}"
+            - name: TORCH_HOME
+              value: "/app/.cache/torch"
+            - name: HF_HOME
+              value: "/app/.cache/huggingface"
+            - name: YOLO_CONFIG_DIR
+              value: "/app/.cache/yolo" """
 
-    # 3. Generate docker-compose.yaml
-    compose_data = {
-        "services": {
-            "nginx": {
-                "image": "nginx:alpine",
-                "ports": [f"{HTTP_PORT}:{HTTP_PORT}"],
-                "volumes": [f"./{NGINX_CONF_PATH}:/etc/nginx/conf.d/default.conf:ro"],
-                "depends_on": models
-            }
-        }
-    }
-
-    for model in models:
-        model_config = {
-            "build": {
-                "context": ".",
-                "args": {"MODEL_NAME": model}
-            },
-            "environment": [
-                f"MODEL_NAME={model}",
-                "TORCH_HOME=/app/.cache/torch",
-                "HF_HOME=/app/.cache/huggingface",
-                "YOLO_CONFIG_DIR=/app/.cache/yolo"
-            ],
-            "volumes": [
-                "./.models:/app/.cache"
-            ],
-            "deploy": {
-                "resources": {
-                    "reservations": {
-                        "devices": [
-                            {
-                                "driver": "nvidia",
-                                "count": "all",
-                                "capabilities": ["gpu"]
-                            }
-                        ]
-                    }
-                }
-            }
-        }
+        secrets_manifest = ""
         
-        # Add model-specific environment variables
         if model == "whisperx":
-            model_config["environment"].extend([
-                "HF_TOKEN=${HF_TOKEN}",
-                "WHISPERX_SIZE=base",
-                "COMPUTE_TYPE=int8"
-            ])
-            
-        compose_data["services"][model] = model_config
+            secrets_manifest = """apiVersion: v1
+kind: Secret
+metadata:
+  name: whisperx-secrets
+type: Opaque
+stringData:
+  HF_TOKEN: "replace_with_your_huggingface_token"
+---
+"""
+            env_vars += """
+            - name: WHISPERX_SIZE
+              value: "base"
+            - name: COMPUTE_TYPE
+              value: "int8"
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: whisperx-secrets
+                  key: HF_TOKEN"""
 
-    with open(DOCKER_COMPOSE_PATH, "w") as f:
-        yaml.dump(compose_data, f, sort_keys=False, default_flow_style=False)
-
-    print("Successfully updated local infrastructure files.")
+        model_manifest = f"""{secrets_manifest}apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {model}-cache-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {model}-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {model}
+  template:
+    metadata:
+      labels:
+        app: {model}
+    spec:
+      containers:
+        - name: {model}
+          image: ghcr.io/mobility-scooter-project/model-service/{model}:latest
+          ports:
+            - containerPort: 8000
+          env:
+{env_vars}
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: model-cache
+              mountPath: /app/.cache
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {model}-cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {model}-svc
+spec:
+  selector:
+    app: {model}
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+"""
+        with open(os.path.join(K8S_OUT_DIR, f"{model}.yaml"), "w") as f:
+            f.write(model_manifest)
 
 if __name__ == "__main__":
-    generate_infra()
+    generate_k8s_infra()

@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: yolo-cache-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yolo-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yolo
+  template:
+    metadata:
+      labels:
+        app: yolo
+    spec:
+      containers:
+        - name: yolo
+          image: ghcr.io/mobility-scooter-project/model-service/yolo:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MODEL_NAME
+              value: "yolo"
+            - name: TORCH_HOME
+              value: "/app/.cache/torch"
+            - name: HF_HOME
+              value: "/app/.cache/huggingface"
+            - name: YOLO_CONFIG_DIR
+              value: "/app/.cache/yolo" 
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: model-cache
+              mountPath: /app/.cache
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: yolo-cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yolo-svc
+spec:
+  selector:
+    app: yolo
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

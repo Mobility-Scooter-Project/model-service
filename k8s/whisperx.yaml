@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: whisperx-secrets
+type: Opaque
+stringData:
+  HF_TOKEN: "replace_with_your_huggingface_token"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whisperx-cache-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisperx-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisperx
+  template:
+    metadata:
+      labels:
+        app: whisperx
+    spec:
+      containers:
+        - name: whisperx
+          image: ghcr.io/mobility-scooter-project/model-service/whisperx:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MODEL_NAME
+              value: "whisperx"
+            - name: TORCH_HOME
+              value: "/app/.cache/torch"
+            - name: HF_HOME
+              value: "/app/.cache/huggingface"
+            - name: YOLO_CONFIG_DIR
+              value: "/app/.cache/yolo" 
+            - name: WHISPERX_SIZE
+              value: "base"
+            - name: COMPUTE_TYPE
+              value: "int8"
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: whisperx-secrets
+                  key: HF_TOKEN
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: model-cache
+              mountPath: /app/.cache
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: whisperx-cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisperx-svc
+spec:
+  selector:
+    app: whisperx
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
