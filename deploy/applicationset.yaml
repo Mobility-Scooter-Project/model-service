@@ -33,7 +33,7 @@ spec:
               replicas: 1
               image:
                 repository: ghcr.io/mobility-scooter-project/model-service/{{path.basename}}
-                tag: latest
+                tag: garrett-terraform-local-refactor
                 pullPolicy: IfNotPresent
 
               resources:

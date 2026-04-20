@@ -6,7 +6,7 @@ pathPrefix: /api/v1/whisperx
 
 image:
   repository: ghcr.io/mobility-scooter-project/model-service/whisperx
-  tag: latest
+  tag: garrett-terraform-local-refactor
 
 serviceAccount:
   create: false

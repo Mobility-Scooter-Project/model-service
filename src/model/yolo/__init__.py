@@ -4,6 +4,8 @@ from .. import ModelWrapper, ModelResult, ModelError
 from ultralytics import YOLO
 
 class yolo(ModelWrapper):
+    """Pose-detection model packaged as a standalone GHCR image."""
+
     def __init__(self):
         model_cache_dir = os.getenv("MODEL_CACHE_DIR", "/app/.cache")
         model_filename = os.getenv("YOLO_MODEL_FILENAME", "yolo11n-pose.pt")

@@ -28,6 +28,8 @@ from .. import ModelWrapper, ModelResult, ModelError
 from ...utils.remote import download_file
 
 class whisperx(ModelWrapper):
+    """Diarized transcription model packaged as a standalone GHCR image."""
+
     def __init__(self):
         super().__init__("whisperx", batch_size=16, output_fields=["transcript"])
         self.whisper_model = None
