@@ -4,3 +4,14 @@ __pycache__/
 *.m4a
 .models/
 .venv
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+terraform/**/.terraform/
+terraform/**/*.tfvars
+!terraform/**/*.tfvars.example
+deploy/stage3/**/*.local.yaml
+deploy/stage3/**/*.private.yaml
+.codex

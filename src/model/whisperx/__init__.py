@@ -27,16 +27,30 @@ from collections import defaultdict
 from .. import ModelWrapper, ModelResult, ModelError
 from ...utils.remote import download_file
 
+
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
 class whisperx(ModelWrapper):
     def __init__(self):
-        super().__init__("whisperx", batch_size=16, output_fields=["transcript"])
+        default_batch_size = 16 if torch.cuda.is_available() else 4
+        super().__init__(
+            "whisperx",
+            batch_size=int(os.getenv("WHISPERX_BATCH_SIZE", str(default_batch_size))),
+            output_fields=["transcript"],
+        )
         self.whisper_model = None
         self.diarize_model = None
         
         # Configurations
-        self.model_size = os.getenv("WHISPERX_SIZE", "base")
+        self.model_size = os.getenv("WHISPERX_SIZE", "base" if self.device == "cuda" else "tiny")
         self.hf_token = os.getenv("HF_TOKEN")
         self.compute_type = os.getenv("COMPUTE_TYPE", "float16" if self.device == "cuda" else "int8")
+        self.enable_diarization = _env_flag("WHISPERX_ENABLE_DIARIZATION", self.device == "cuda")
         self.vad_onset = float(os.getenv("VAD_ONSET", "0.500"))
         self.vad_offset = float(os.getenv("VAD_OFFSET", "0.363"))
 
@@ -60,9 +74,6 @@ class whisperx(ModelWrapper):
             torch.backends.cudnn.allow_tf32 = orig_cudnn
 
     def load_model(self):
-        if not self.hf_token:
-            raise ValueError("HF_TOKEN environment variable is required for diarization.")
-            
         with self._unsafe_torch_load():
             vad_options = {
                 "vad_onset": self.vad_onset,
@@ -75,15 +86,20 @@ class whisperx(ModelWrapper):
                 compute_type=self.compute_type,
                 vad_options=vad_options,
             )
-            
-            from whisperx.diarize import DiarizationPipeline
-            self.diarize_model = DiarizationPipeline(
-                token=self.hf_token,
-                device=self.device,
-            )
+
+            if self.enable_diarization:
+                if not self.hf_token:
+                    raise ValueError("HF_TOKEN environment variable is required when diarization is enabled.")
+
+                from whisperx.diarize import DiarizationPipeline
+
+                self.diarize_model = DiarizationPipeline(
+                    token=self.hf_token,
+                    device=self.device,
+                )
 
     def predict(self, input, fields=["transcript"]):
-        if not self.whisper_model or not self.diarize_model:
+        if not self.whisper_model:
             raise ValueError("Model not loaded. Call load_model() before predict().")
 
         res = ModelResult(data=None, error=None, metadata={"device": self.device})
@@ -101,10 +117,12 @@ class whisperx(ModelWrapper):
             result = whisperx_lib.align(result["segments"], model_a, metadata, audio, self.device, return_char_alignments=False)
             del model_a
             gc.collect()
-            torch.cuda.empty_cache()
+            if self.device == "cuda":
+                torch.cuda.empty_cache()
 
-            diarize_segments = self.diarize_model(audio, min_speakers=1, max_speakers=2)
-            result = whisperx_lib.assign_word_speakers(diarize_segments, result)
+            if self.enable_diarization and self.diarize_model:
+                diarize_segments = self.diarize_model(audio, min_speakers=1, max_speakers=2)
+                result = whisperx_lib.assign_word_speakers(diarize_segments, result)
 
             res["data"] = self._format_transcript(result)
 
@@ -116,6 +134,17 @@ class whisperx(ModelWrapper):
             return res
 
     def _format_transcript(self, result):
+        if not any("speaker" in segment for segment in result["segments"]):
+            return [
+                {
+                    "speaker": None,
+                    "start": segment["start"],
+                    "end": segment["end"],
+                    "text": segment["text"].strip(),
+                }
+                for segment in result["segments"]
+            ]
+
         speakerScript = defaultdict(list)
         speakerLabel = defaultdict(str)
         

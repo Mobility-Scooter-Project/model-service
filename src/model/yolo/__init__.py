@@ -1,9 +1,14 @@
+import os
+
 from .. import ModelWrapper, ModelResult, ModelError
 from ultralytics import YOLO
 
 class yolo(ModelWrapper):
     def __init__(self):
-        super().__init__(".models/yolo11n-pose.pt", output_fields=["boxes", "keypoints", "masks", "names"])
+        super().__init__(
+            os.getenv("YOLO_MODEL_FILENAME", "yolo11n-pose.pt"),
+            output_fields=["boxes", "keypoints", "masks", "names"],
+        )
 
     def load_model(self):
         self.model = YOLO(self.model_name).to(self.device)
@@ -15,7 +20,7 @@ class yolo(ModelWrapper):
         res = ModelResult(data=None, error=None, metadata={"device": self.device})
         
         try:
-            outputs = self.model(input)
+            outputs = self.model(input, verbose=False)
             res["data"] = []
             
             for output in outputs:
@@ -28,11 +33,10 @@ class yolo(ModelWrapper):
                                "data": box.data.tolist() 
                             }
                             )
-                print(output.boxes)
                 if "keypoints" in fields:
-                    result["keypoints"] = output.keypoints.data.tolist()
+                    result["keypoints"] = output.keypoints.data.tolist() if output.keypoints is not None else None
                 if "masks" in fields:
-                    result["masks"] = output.masks
+                    result["masks"] = output.masks.data.tolist() if output.masks is not None else None
                 if "names" in fields:
                     result["names"] = output.names
                 

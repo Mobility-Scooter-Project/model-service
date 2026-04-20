@@ -9,7 +9,7 @@ on:
       - "src/model/**"
       - ".github/workflows/build_and_push_models.yaml"
       - "Dockerfile"
-      - "reqirements.txt"
+      - "requirements.txt"
   workflow_dispatch:
     inputs:
       rebuild_all:

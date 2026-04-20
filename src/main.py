@@ -4,11 +4,13 @@ from dotenv import load_dotenv
 from .lib.validator import PredictBody
 import importlib
 import os
+import threading
 import uuid
 
 load_dotenv()
 
 MODEL_NAME = os.environ.get("MODEL_NAME")
+MODEL_EAGER_LOAD = os.environ.get("MODEL_EAGER_LOAD", "").lower() in {"1", "true", "yes", "on"}
 
 if not MODEL_NAME:
     raise ValueError("missing MODEL_NAME")
@@ -30,10 +32,31 @@ try:
 except ValueError as e:
     raise e
 
-try:
-    model.load_model()
-except Exception as e:
-    raise RuntimeError(f"failed to load model {MODEL_NAME}: {e}")    
+_model_load_lock = threading.Lock()
+
+
+def _is_model_loaded() -> bool:
+    return getattr(model, "_loaded", False)
+
+
+def ensure_model_loaded() -> None:
+    if _is_model_loaded():
+        return
+
+    with _model_load_lock:
+        if _is_model_loaded():
+            return
+
+        try:
+            model.load_model()
+        except Exception as e:
+            raise RuntimeError(f"failed to load model {MODEL_NAME}: {e}") from e
+
+        setattr(model, "_loaded", True)
+
+
+if MODEL_EAGER_LOAD:
+    ensure_model_loaded()
 
 app = FastAPI()
 
@@ -41,6 +64,7 @@ jobs = {}
 
 def process_prediction(job_id: str, input_data, fields: list):
     try:
+        ensure_model_loaded()
         result = model.predict(input_data, fields)
         jobs[job_id] = {
             "status": "completed" if not result.get("error") else "failed",
@@ -58,7 +82,7 @@ def process_prediction(job_id: str, input_data, fields: list):
 
 @app.get("/info")
 def info():
-    return {"data": str(model)}
+    return {"data": str(model), "loaded": _is_model_loaded()}
 
 @app.post("/predict")
 def predict(body: PredictBody, background_tasks: BackgroundTasks, fields: str = Query(",".join(model.output_fields))):
