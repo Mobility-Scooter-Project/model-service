@@ -18,6 +18,7 @@ services:
     - TORCH_HOME=/app/.cache/torch
     - HF_HOME=/app/.cache/huggingface
     - YOLO_CONFIG_DIR=/app/.cache/yolo
+    - MODEL_CACHE_DIR=/app/.cache
     - HF_TOKEN=${HF_TOKEN}
     - WHISPERX_SIZE=base
     - COMPUTE_TYPE=int8
@@ -41,6 +42,7 @@ services:
     - TORCH_HOME=/app/.cache/torch
     - HF_HOME=/app/.cache/huggingface
     - YOLO_CONFIG_DIR=/app/.cache/yolo
+    - MODEL_CACHE_DIR=/app/.cache
     volumes:
     - ./.models:/app/.cache
     deploy:

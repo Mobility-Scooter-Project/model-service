@@ -1,0 +1,39 @@
+{{- if .Values.httpScaledObject.enabled }}
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: {{ include "model-service-stage3.fullname" . }}
+  namespace: {{ include "model-service-stage3.namespace" . }}
+  labels:
+    {{- include "model-service-stage3.labels" . | nindent 4 }}
+  {{- with .Values.httpScaledObject.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  hosts:
+    {{- if .Values.httpScaledObject.hosts }}
+    {{- toYaml .Values.httpScaledObject.hosts | nindent 4 }}
+    {{- else }}
+    - {{ .Values.host | quote }}
+    {{- end }}
+  pathPrefixes:
+    {{- if .Values.httpScaledObject.pathPrefixes }}
+    {{- toYaml .Values.httpScaledObject.pathPrefixes | nindent 4 }}
+    {{- else }}
+    - {{ .Values.pathPrefix | quote }}
+    {{- end }}
+  scaleTargetRef:
+    name: {{ include "model-service-stage3.fullname" . }}
+    kind: Deployment
+    apiVersion: apps/v1
+    service: {{ include "model-service-stage3.fullname" . }}
+    port: {{ .Values.service.port }}
+  replicas:
+    min: {{ .Values.httpScaledObject.replicas.min }}
+    max: {{ .Values.httpScaledObject.replicas.max }}
+  scaledownPeriod: {{ .Values.httpScaledObject.scaledownPeriod }}
+  scalingMetric:
+    concurrency:
+      targetValue: {{ .Values.httpScaledObject.concurrencyTarget }}
+{{- end }}

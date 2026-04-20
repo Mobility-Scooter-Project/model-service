@@ -1,0 +1,88 @@
+# Example contract file for the future OpenStack stack.
+# This file is here mainly to show that the local and production-shaped stacks
+# accept the same conceptual inputs.
+
+name_prefix = "model-service-prod"
+
+networks = {
+  external = {
+    enabled      = true
+    cidr         = "192.168.124.0/24"
+    gateway      = "192.168.124.1"
+    dhcp_range   = { start = "192.168.124.50", end = "192.168.124.200" }
+    dns          = ["1.1.1.1", "8.8.8.8"]
+    mtu          = 1450
+    address_mode = "dynamic"
+    reservations = {}
+  }
+  cluster = {
+    enabled      = true
+    cidr         = "10.42.0.0/24"
+    gateway      = "10.42.0.1"
+    dhcp_range   = { start = "10.42.0.100", end = "10.42.0.200" }
+    dns          = ["10.42.0.1"]
+    mtu          = 1450
+    address_mode = "dhcp_reserved"
+    reservations = {
+      control-plane-01 = {
+        ip       = "10.42.0.10"
+        hostname = "control-plane-01"
+      }
+    }
+  }
+  storage = {
+    enabled      = true
+    cidr         = "10.43.0.0/24"
+    gateway      = "10.43.0.1"
+    dhcp_range   = { start = "10.43.0.100", end = "10.43.0.200" }
+    dns          = []
+    mtu          = 1450
+    address_mode = "dynamic"
+    reservations = {}
+  }
+}
+
+node_pools = {
+  control_plane = {
+    count        = 1
+    vcpu         = 2
+    memory_mb    = 4096
+    root_disk_gb = 30
+    data_disk_gb = 80
+    networks     = ["external", "cluster", "storage"]
+    labels = {
+      role = "control-plane"
+    }
+  }
+  workers_cpu = {
+    count        = 2
+    vcpu         = 4
+    memory_mb    = 8192
+    root_disk_gb = 40
+    data_disk_gb = 100
+    networks     = ["external", "cluster", "storage"]
+    labels = {
+      role = "worker"
+      tier = "cpu"
+    }
+  }
+}
+
+# The future OpenStack stack will likely pass `user_data` directly through to
+# Nova instead of generating a local seed ISO.
+cloud_init = {
+  user_data = <<-EOT
+  #cloud-config
+  manage_etc_hosts: true
+  EOT
+}
+
+storage = {
+  image_store_path     = "/var/lib/cinder/images"
+  volume_store_path    = "/var/lib/cinder/volumes"
+  base_image_name      = "jammy-server-cloudimg-amd64.img"
+  base_image_source    = "openstack-image:ubuntu-jammy"
+  retain_on_destroy    = false
+  default_root_disk_gb = 30
+  default_data_disk_gb = 100
+}

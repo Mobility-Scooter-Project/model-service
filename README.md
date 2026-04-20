@@ -17,6 +17,12 @@ Local development uses a reverse proxy gateway to mimic the production environme
 * **Execution**: Use `docker compose up -d --build` to launch the Nginx gateway and model containers.
 * **Access**: Models are accessible via `http://localhost:8000/api/v1/<model_name>/predict`.
 
+#### Local Cloud Simulation
+The Terraform-based VM substrate for local cloud-style validation lives under [`terraform/`](./terraform/README.md). It models compute, network, storage, cloud-init bootstrapping, and a future OpenStack contract without replacing the existing container-first dev loop.
+
+#### Stage 3 Local K3s Package
+The direct-apply Stage 3 package for synchronous, KEDA HTTP-backed model serving lives under [`deploy/stage3/`](./deploy/stage3/README.md). It keeps Traefik in front of the cluster, routes requests through the KEDA interceptor, and mounts model caches at `/app/.cache` so local PVCs survive scale-to-zero cycles.
+
 #### Hosted Infrastructure
 Deployment to the Kubernetes cluster is fully automated.
 * **CI/CD**: GitHub Actions automatically builds and pushes a new image for any directory changed under `src/model/`.

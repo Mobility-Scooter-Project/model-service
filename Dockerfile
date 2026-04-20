@@ -29,8 +29,13 @@ COPY ./src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install -r src/model/${MODEL_NAME}/requirements.txt
 
-RUN mkdir -p /app/.config && chmod 777 /app/.config
-ENV YOLO_CONFIG_DIR=/app/.config
+RUN mkdir -p /app/.cache /app/.cache/yolo /app/.config \
+    && chmod -R 777 /app/.cache /app/.config
+
+ENV TORCH_HOME=/app/.cache/torch \
+    HF_HOME=/app/.cache/huggingface \
+    YOLO_CONFIG_DIR=/app/.cache/yolo \
+    MODEL_CACHE_DIR=/app/.cache
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV MODEL_NAME=${MODEL_NAME}

@@ -1,0 +1,99 @@
+{{- $profile := (default dict (get .Values.hardwareProfiles .Values.hardwareProfile)) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "model-service-stage3.fullname" . }}
+  namespace: {{ include "model-service-stage3.namespace" . }}
+  labels:
+    {{- include "model-service-stage3.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  selector:
+    matchLabels:
+      {{- include "model-service-stage3.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "model-service-stage3.selectorLabels" . | nindent 8 }}
+        model-service.io/hardware-profile: {{ .Values.hardwareProfile | quote }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "model-service-stage3.serviceAccountName" . }}
+      {{- with $profile.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $profile.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $profile.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "model-service-stage3.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: MODEL_NAME
+              value: {{ .Values.modelName | quote }}
+            - name: API_BASE_PATH
+              value: {{ default .Values.pathPrefix .Values.runtime.apiBasePath | quote }}
+            - name: TORCH_HOME
+              value: {{ .Values.runtime.torchHome | quote }}
+            - name: HF_HOME
+              value: {{ .Values.runtime.hfHome | quote }}
+            - name: YOLO_CONFIG_DIR
+              value: {{ .Values.runtime.yoloConfigDir | quote }}
+            - name: MODEL_CACHE_DIR
+              value: {{ .Values.runtime.modelCacheDir | quote }}
+            {{- range $name := keys .Values.extraEnv | sortAlpha }}
+            - name: {{ $name }}
+              value: {{ index $.Values.extraEnv $name | quote }}
+            {{- end }}
+            {{- if and .Values.appSecret.create (gt (len .Values.appSecret.stringData) 0) }}
+            {{- range $name := keys .Values.appSecret.stringData | sortAlpha }}
+            - name: {{ $name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "model-service-stage3.appSecretName" $ }}
+                  key: {{ $name }}
+            {{- end }}
+            {{- end }}
+            {{- range .Values.extraSecretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.cache.enabled }}
+            - name: model-cache
+              mountPath: {{ .Values.cache.mountPath }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if .Values.cache.enabled }}
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "model-service-stage3.cachePvcName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

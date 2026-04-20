@@ -1,0 +1,116 @@
+# Install one Helm release per model image. The release name becomes the
+# Deployment/Service identity that the HTTPScaledObject scales.
+nameOverride: ""
+fullnameOverride: ""
+namespaceOverride: ""
+
+# `modelName` selects the Python model module and also drives the default
+# external route shape when `pathPrefix` is not overridden.
+modelName: whisperx
+host: models.local
+pathPrefix: /api/v1/whisperx
+
+image:
+  repository: ghcr.io/mobility-scooter-project/model-service/whisperx
+  tag: latest
+  pullPolicy: IfNotPresent
+
+deployment:
+  # Start at zero so the first request exercises the KEDA HTTP cold-start path.
+  replicas: 0
+
+service:
+  port: 8000
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  labels: {}
+  tls: []
+
+interceptor:
+  # The Stage 3 platform manifests create this namespace-local alias that points
+  # Traefik at the KEDA interceptor service in the `keda` namespace.
+  serviceName: keda-http-interceptor
+  servicePort: 8080
+
+httpScaledObject:
+  enabled: true
+  annotations: {}
+  hosts: []
+  pathPrefixes: []
+  replicas:
+    min: 0
+    max: 1
+  scaledownPeriod: 300
+  concurrencyTarget: 1
+
+cache:
+  enabled: true
+  mountPath: /app/.cache
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi
+
+runtime:
+  apiBasePath: ""
+  torchHome: /app/.cache/torch
+  hfHome: /app/.cache/huggingface
+  yoloConfigDir: /app/.cache/yolo
+  modelCacheDir: /app/.cache
+
+serviceAccount:
+  # The shared platform manifest creates `model-service-runtime` once.
+  create: false
+  name: model-service-runtime
+  annotations: {}
+  imagePullSecrets:
+    - ghcr-pull-secret
+
+imagePullSecret:
+  # Leave this off for the shared-secret workflow. Turn it on only when you
+  # intentionally want a release-owned pull secret from a local values file.
+  create: false
+  name: ghcr-pull-secret
+  dockerconfigjson: ""
+
+appSecret:
+  # Use this only from an untracked local values file. Every key becomes both a
+  # `stringData` entry and an injected environment variable of the same name.
+  create: false
+  name: ""
+  stringData: {}
+
+extraEnv: {}
+extraSecretEnv: []
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "2Gi"
+  limits:
+    cpu: "2000m"
+    memory: "4Gi"
+
+# Stage 3 schedules by named hardware profile so the release config stays easy
+# to scan. CPU is the only active default in the local lab.
+hardwareProfile: cpu
+hardwareProfiles:
+  cpu:
+    nodeSelector:
+      model-service.io/node-class: cpu
+    tolerations: []
+    affinity: {}
+  gpu:
+    nodeSelector:
+      model-service.io/gpu-candidate: "true"
+    tolerations: []
+    affinity: {}
+
+podLabels: {}
+podAnnotations: {}
+extraVolumes: []
+extraVolumeMounts: []

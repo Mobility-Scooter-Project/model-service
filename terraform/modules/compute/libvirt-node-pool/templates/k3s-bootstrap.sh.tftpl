@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# This script writes the final k3s config and then installs k3s using the
+# official install script. Keeping the config in a file is easier to read later
+# than burying every decision in environment variables or systemd units.
+
+NODE_NAME="${node_name}"
+NODE_ROLE="${node_role}"
+CLUSTER_INTERFACE="${cluster_interface}"
+CONTROL_PLANE_IP="${control_plane_ip}"
+CLUSTER_TOKEN="${cluster_token}"
+POD_CIDR="${pod_cidr}"
+SERVICE_CIDR="${service_cidr}"
+LOCAL_STORAGE_PATH="${local_storage_path}"
+K3S_CHANNEL="${k3s_channel}"
+
+mkdir -p /etc/rancher/k3s
+
+# Agents discover their node IP from the internal cluster NIC so they do not
+# accidentally register their external NAT address with Kubernetes.
+if [ "$${NODE_ROLE}" = "server" ]; then
+  NODE_IP="${control_plane_ip}"
+else
+  NODE_IP=""
+  for _ in $(seq 1 60); do
+    NODE_IP="$(ip -4 -o addr show dev "$${CLUSTER_INTERFACE}" scope global | awk '{print $4}' | cut -d/ -f1 | head -n1 || true)"
+    if [ -n "$${NODE_IP}" ]; then
+      break
+    fi
+    sleep 2
+  done
+fi
+
+if [ -z "$${NODE_IP}" ]; then
+  echo "Unable to determine node IP for $${NODE_NAME} on $${CLUSTER_INTERFACE}" >&2
+  exit 1
+fi
+
+cat > /etc/rancher/k3s/config.yaml <<EOF
+token: ${cluster_token}
+node-name: ${node_name}
+node-ip: $${NODE_IP}
+%{ if node_role == "server" ~}
+write-kubeconfig-mode: "0644"
+default-local-storage-path: ${local_storage_path}
+flannel-backend: none
+disable-network-policy: true
+cluster-cidr: ${pod_cidr}
+service-cidr: ${service_cidr}
+cluster-init: true
+advertise-address: ${control_plane_ip}
+tls-san:
+  - ${control_plane_ip}
+%{ if !keep_traefik || !install_metrics_server ~}
+disable:
+%{ if !keep_traefik ~}
+  - traefik
+%{ endif ~}
+%{ if !install_metrics_server ~}
+  - metrics-server
+%{ endif ~}
+%{ endif ~}
+%{ else ~}
+server: https://${control_plane_ip}:6443
+%{ endif ~}
+%{ if length(node_labels) > 0 ~}
+node-label:
+%{ for label in node_labels ~}
+  - ${label}
+%{ endfor ~}
+%{ endif ~}
+%{ if length(node_taints) > 0 ~}
+node-taint:
+%{ for taint in node_taints ~}
+  - ${taint}
+%{ endfor ~}
+%{ endif ~}
+EOF
+
+# The k3s install script defaults to installing a server unless we explicitly
+# ask for the agent role. Our worker nodes already write `server:` in
+# `/etc/rancher/k3s/config.yaml`, but without `INSTALL_K3S_EXEC=agent` the
+# installer still creates `k3s.service` instead of `k3s-agent.service` and the
+# join fails during first boot.
+if [ "$${NODE_ROLE}" = "server" ]; then
+  curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL="$${K3S_CHANNEL}" sh -
+else
+  curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL="$${K3S_CHANNEL}" INSTALL_K3S_EXEC="agent" sh -
+fi

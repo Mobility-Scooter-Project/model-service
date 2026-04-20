@@ -4,18 +4,9 @@
 
 @baseUrl = http://localhost:8000/api/v1/whisperx
 
-# @name submitJob
 POST {{baseUrl}}/predict
 Content-Type: application/json
 
 {
     "input": "https://js2.jetstream-cloud.org:8001/swift/v1/public/sample.m4a"
 }
-
-###
-
-# Capture the job_id from the response above
-@jobId = {{submitJob.response.body.job_id}}
-
-# Call this repeatedly to poll for results
-GET {{baseUrl}}/status/{{jobId}}

@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<!--
+  This XSLT copies the provider-generated domain XML unchanged, then appends one
+  <hostdev> entry per PCI device inside the <devices> section.
+
+  References:
+  - XSLT 1.0 overview: https://www.w3.org/TR/xslt
+  - libvirt host device assignment: https://libvirt.org/formatdomain.html#host-device-assignment
+-->
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:output omit-xml-declaration="yes" indent="yes"/>
+
+  <!-- Identity transform: copy every existing node and attribute as-is. -->
+  <xsl:template match="node()|@*">
+    <xsl:copy>
+      <xsl:apply-templates select="node()|@*"/>
+    </xsl:copy>
+  </xsl:template>
+
+  <!--
+    The second `<disk device="disk">` is the mutable qcow2 data disk because
+    the compute module attaches disks in a fixed order: root first, data second.
+    We inject a short serial here so the guest exposes a stable by-id path that
+    cloud-init can safely format without guessing `/dev/vd*` names.
+  -->
+  <xsl:template match="/domain/devices/disk[@device='disk'][2]">
+    <xsl:copy>
+      <xsl:apply-templates select="node()|@*"/>
+      <serial>${data_disk_serial}</serial>
+    </xsl:copy>
+  </xsl:template>
+
+  <!--
+    Special-case the <devices> section so we can append passthrough hardware
+    after all of libvirt's normal virtual devices.
+  -->
+  <xsl:template match="/domain/devices">
+    <xsl:copy>
+      <xsl:apply-templates select="node()|@*"/>
+%{ for device in devices ~}
+      <hostdev mode="subsystem" type="pci" managed="${try(device.managed, true) ? "yes" : "no"}">
+        <source>
+          <address domain="0x${device.domain}" bus="0x${device.bus}" slot="0x${device.slot}" function="0x${device.function}"/>
+        </source>
+      </hostdev>
+%{ endfor ~}
+    </xsl:copy>
+  </xsl:template>
+</xsl:stylesheet>

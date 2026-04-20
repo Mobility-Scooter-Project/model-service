@@ -1,0 +1,8 @@
+Stage 3 installs one release per model image.
+
+The external route for this release is:
+  http://{{ .Values.host }}{{ .Values.pathPrefix }}/predict
+
+The KEDA HTTP add-on watches:
+  hosts={{ default (list .Values.host) .Values.httpScaledObject.hosts }}
+  pathPrefixes={{ default (list .Values.pathPrefix) .Values.httpScaledObject.pathPrefixes }}

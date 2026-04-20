@@ -1,11 +1,16 @@
+import os
+
 from .. import ModelWrapper, ModelResult, ModelError
 from ultralytics import YOLO
 
 class yolo(ModelWrapper):
     def __init__(self):
-        super().__init__(".models/yolo11n-pose.pt", output_fields=["boxes", "keypoints", "masks", "names"])
+        model_cache_dir = os.getenv("MODEL_CACHE_DIR", "/app/.cache")
+        model_filename = os.getenv("YOLO_MODEL_FILENAME", "yolo11n-pose.pt")
+        super().__init__(os.path.join(model_cache_dir, model_filename), output_fields=["boxes", "keypoints", "masks", "names"])
 
     def load_model(self):
+        os.makedirs(os.path.dirname(self.model_name), exist_ok=True)
         self.model = YOLO(self.model_name).to(self.device)
 
     def predict(self, input, fields = ["boxes","keypoints","masks","names"]):
@@ -28,7 +33,6 @@ class yolo(ModelWrapper):
                                "data": box.data.tolist() 
                             }
                             )
-                print(output.boxes)
                 if "keypoints" in fields:
                     result["keypoints"] = output.keypoints.data.tolist()
                 if "masks" in fields:

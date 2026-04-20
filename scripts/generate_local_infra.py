@@ -59,7 +59,8 @@ def generate_infra():
                 f"MODEL_NAME={model}",
                 "TORCH_HOME=/app/.cache/torch",
                 "HF_HOME=/app/.cache/huggingface",
-                "YOLO_CONFIG_DIR=/app/.cache/yolo"
+                "YOLO_CONFIG_DIR=/app/.cache/yolo",
+                "MODEL_CACHE_DIR=/app/.cache"
             ],
             "volumes": [
                 "./.models:/app/.cache"

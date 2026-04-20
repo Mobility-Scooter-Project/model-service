@@ -1,0 +1,32 @@
+# Copy to `yolo.values.local.yaml` when you need to tweak tags/resources locally.
+modelName: yolo
+host: models.local
+pathPrefix: /api/v1/yolo
+
+image:
+  repository: ghcr.io/mobility-scooter-project/model-service/yolo
+  tag: latest
+
+serviceAccount:
+  create: false
+  name: model-service-runtime
+
+httpScaledObject:
+  replicas:
+    min: 0
+    max: 1
+  scaledownPeriod: 300
+  concurrencyTarget: 1
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "1Gi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+cache:
+  size: 10Gi
+
+hardwareProfile: cpu
