@@ -27,6 +27,7 @@ This directory introduces a staged Terraform layout for moving the model service
 - `terraform apply` for `stacks/local-libvirt` also requires a local ISO authoring tool for `libvirt_cloudinit_disk`. On Ubuntu, install `genisoimage` so the `mkisofs` binary is available on `PATH`.
 - `terraform apply` for `stacks/local-libvirt` also requires `xsltproc` on the host because the stack uses an XSLT hook to inject the stable data-disk serial and optional PCI passthrough XML into each libvirt domain definition.
 - If `terraform apply` fails with `does not support virt type 'kvm'`, your host likely lacks KVM acceleration. Set `domain_type = "qemu"` in `stacks/local-libvirt/terraform.tfvars` to use software emulation instead.
+- `cpu_mode` now defaults to `host-model`, which is compatible with both `kvm` and `qemu`. Reserve `cpu_mode = "host-passthrough"` for `kvm` hosts that need the maximum host CPU feature set for local ML workloads.
 - When using `domain_type = "qemu"`, guest boot is much slower and libvirt IP lease polling is unreliable. The local stack therefore defaults to lease waiting only on the external network for `kvm`, while internal `cluster` and `storage` networks default to `wait_for_lease = false`.
 - When running the lab from WSL2, enable `wsl2_compatibility_mode = true` in `stacks/local-libvirt/terraform.tfvars`. That forces deterministic static guest IPs on `external`, `cluster`, and `storage`, which is much more reliable than libvirt DHCP on WSL2-based hosts.
 
@@ -43,6 +44,7 @@ Recommended local `terraform.tfvars` additions on WSL2:
 ```hcl
 domain_type             = "qemu"
 wsl2_compatibility_mode = true
+# cpu_mode stays on the default "host-model" here; do not set host-passthrough.
 ```
 
 When compatibility mode is enabled, the stack auto-assigns deterministic guest IPs:

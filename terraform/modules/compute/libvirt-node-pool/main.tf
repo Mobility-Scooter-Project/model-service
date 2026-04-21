@@ -353,6 +353,12 @@ resource "libvirt_domain" "this" {
   memory = each.value.memory_mb
   vcpu   = each.value.vcpu
 
+  # Expose a modern CPU model to the guest so native ML wheels do not inherit
+  # libvirt's very old qemu64 defaults. `host-passthrough` is reserved for KVM.
+  cpu {
+    mode = var.cpu_mode
+  }
+
   # `autostart` means libvirt will try to boot the VM on host restart.
   autostart = true
 

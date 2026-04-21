@@ -189,6 +189,15 @@ check "predictable_addressing_inputs" {
   }
 }
 
+# Libvirt rejects `host-passthrough` on software-emulated qemu domains, so fail
+# with a Terraform-native message before the provider reaches libvirt XML.
+check "cpu_mode_compatibility" {
+  assert {
+    condition     = !(var.domain_type == "qemu" && var.cpu_mode == "host-passthrough")
+    error_message = "cpu_mode=host-passthrough requires domain_type=kvm. Use cpu_mode=host-model when domain_type=qemu, including WSL2-style hosts."
+  }
+}
+
 # GPU pools only make sense when the local-only passthrough mode is enabled.
 check "gpu_mode_consistency" {
   assert {
@@ -299,6 +308,7 @@ module "compute" {
   name_prefix          = var.name_prefix
   pool_name            = each.key
   domain_type          = var.domain_type
+  cpu_mode             = var.cpu_mode
   nodes                = each.value
   cloud_init           = local.cloud_init_for_modules
   cloud_init_pool_name = module.storage.volume_pool_name

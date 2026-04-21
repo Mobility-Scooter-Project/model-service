@@ -24,6 +24,22 @@ variable "domain_type" {
   default     = "kvm"
 }
 
+# `cpu_mode` controls how much of the host CPU the guest can see.
+# - `host-model` is the safest default across both hardware-accelerated `kvm`
+#   and software-emulated `qemu` guests while still exposing a modern CPU shape.
+# - `host-passthrough` exposes the most host features, including AVX/AVX2 when
+#   the host supports them, but libvirt only supports it on `kvm` domains.
+variable "cpu_mode" {
+  description = "CPU presentation mode used by libvirt for VM creation."
+  type        = string
+  default     = "host-model"
+
+  validation {
+    condition     = contains(["host-model", "host-passthrough"], var.cpu_mode)
+    error_message = "cpu_mode must be host-model or host-passthrough."
+  }
+}
+
 # WSL2 struggles with libvirt tap/DHCP behavior, especially when the guests run
 # under software-emulated `qemu` instead of hardware-accelerated KVM. Enabling
 # this switch forces deterministic static guest IPs on every lab network so the

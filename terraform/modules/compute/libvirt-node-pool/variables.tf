@@ -17,6 +17,14 @@ variable "domain_type" {
   type        = string
 }
 
+# CPU presentation mode controls which host CPU features are exposed to the
+# guest. `host-model` is the safe cross-host default, while
+# `host-passthrough` is a KVM-only opt-in for maximum host feature exposure.
+variable "cpu_mode" {
+  description = "Libvirt CPU mode applied to each domain."
+  type        = string
+}
+
 # Expanded node map from the root stack. Each key is a concrete node such as
 # `workers-cpu-02`.
 variable "nodes" {

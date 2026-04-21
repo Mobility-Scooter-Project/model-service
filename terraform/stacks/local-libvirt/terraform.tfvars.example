@@ -22,6 +22,11 @@ libvirt_uri = "qemu:///system"
 # If your host has no /dev/kvm or kvm-ok reports no KVM support, use:
 # domain_type = "qemu"
 #
+# The default CPU mode is `host-model`, which works on both `kvm` and `qemu`.
+# If you are using `kvm` and need the maximum host instruction coverage for
+# local ML workloads, you can opt into:
+# cpu_mode = "host-passthrough"
+#
 # If you are running libvirt from WSL2, also enable the compatibility mode
 # below so the guests use fully static IPs instead of depending on libvirt DHCP.
 # wsl2_compatibility_mode = true

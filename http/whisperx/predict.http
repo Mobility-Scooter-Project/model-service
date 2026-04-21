@@ -1,0 +1,17 @@
+@ingressIp = 10.42.0.10
+@baseUrl = http://{{ingressIp}}/api/v1/whisperx
+
+# Stage 3 ingress request through Traefik and the KEDA HTTP add-on.
+# Uses the ingress IP directly so REST clients do not depend on local DNS.
+# The `Host` header still targets the `models.local` ingress rule.
+POST {{baseUrl}}/predict
+Host: models.local
+Content-Type: application/json
+
+{
+  "input": "http://192.168.124.1:8001/voice-message.m4a"
+}
+
+# {
+#   "input": "https://audio.buzzsprout.com/ztnzctcupk3ki3jczmm9389vqky4?response-content-disposition=inline"
+# }
