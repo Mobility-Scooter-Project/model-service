@@ -95,6 +95,30 @@ resources:
     cpu: "2000m"
     memory: "4Gi"
 
+# Publish pods to the Service only after the HTTP app is actually serving.
+# This matters for models like WhisperX that spend significant time loading
+# weights before FastAPI binds port 8000.
+probes:
+  startup:
+    enabled: true
+    path: /info
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 60
+  readiness:
+    enabled: true
+    path: /info
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+    successThreshold: 1
+  liveness:
+    enabled: false
+    path: /info
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
 # Stage 3 schedules by named hardware profile so the release config stays easy
 # to scan. CPU is the only active default in the local lab.
 hardwareProfile: cpu
