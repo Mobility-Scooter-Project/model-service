@@ -5,13 +5,6 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_TOOL_BIN_DIR=/usr/local/bin
 
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-    libxcb1 \
-    libglib2.0-0 \
-    libgl1 \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
     
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \
@@ -22,12 +15,24 @@ ARG MODEL_NAME
 
 WORKDIR /app
 
-COPY --from=base /app/.venv /.venv
+RUN apt-get update \
+    && if [ "$MODEL_NAME" = "whisperx" ]; then \
+         apt-get install -y --no-install-recommends ffmpeg; \
+       elif [ "$MODEL_NAME" = "yolo" ]; then \
+         apt-get install -y --no-install-recommends libglib2.0-0; \
+       fi \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=base /app/.venv /app/.venv
 
 COPY ./src ./src
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -r src/model/${MODEL_NAME}/requirements.txt
+    uv pip install \
+      --index-url https://download.pytorch.org/whl/cpu \
+      --extra-index-url https://pypi.org/simple \
+      --index-strategy first-index \
+      -r src/model/${MODEL_NAME}/requirements.txt
 
 RUN mkdir -p /app/.cache /app/.cache/yolo /app/.config \
     && chmod -R 777 /app/.cache /app/.config
