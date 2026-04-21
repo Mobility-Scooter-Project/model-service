@@ -13,9 +13,6 @@ pathPrefix: /api/v1/whisperx
 image:
   repository: ghcr.io/mobility-scooter-project/model-service/whisperx
   tag: latest
-  # Leave blank to follow `hardwareProfile`. GPU releases then pull
-  # `<tag>-gpu`, while CPU releases keep the plain tag.
-  variant: ""
   pullPolicy: IfNotPresent
 
 deployment:

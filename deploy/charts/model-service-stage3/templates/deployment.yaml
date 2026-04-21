@@ -1,6 +1,4 @@
 {{- $profile := (default dict (get .Values.hardwareProfiles .Values.hardwareProfile)) -}}
-{{- $imageVariant := default .Values.hardwareProfile .Values.image.variant -}}
-{{- $imageTag := ternary (printf "%s-%s" .Values.image.tag $imageVariant) .Values.image.tag (and $imageVariant (ne $imageVariant "cpu")) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,7 +39,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ include "model-service-stage3.fullname" . }}
-          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
