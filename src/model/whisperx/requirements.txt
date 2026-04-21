@@ -1,3 +1,4 @@
 torch==2.5.1
 torchaudio==2.5.1
 whisperx
+huggingface_hub<1.0
