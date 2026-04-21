@@ -1,4 +1,5 @@
-torch==2.5.1
-torchaudio==2.5.1
-whisperx
-huggingface_hub<1.0
+whisperx==3.8.5
+torch~=2.8.0
+torchaudio~=2.8.0
+pyannote-audio>=4.0.0
+huggingface_hub<1.0.0

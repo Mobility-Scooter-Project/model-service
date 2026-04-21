@@ -80,7 +80,7 @@ class whisperx(ModelWrapper):
             
             from whisperx.diarize import DiarizationPipeline
             self.diarize_model = DiarizationPipeline(
-                use_auth_token=self.hf_token,
+                token=self.hf_token,
                 device=self.device,
             )
 
