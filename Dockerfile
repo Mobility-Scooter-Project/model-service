@@ -12,6 +12,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM base AS final
 ARG MODEL_NAME
+ARG MODEL_ACCELERATOR=cpu
 
 WORKDIR /app
 
@@ -27,12 +28,21 @@ COPY --from=base /app/.venv /app/.venv
 
 COPY ./src ./src
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install \
-      --index-url https://download.pytorch.org/whl/cpu \
-      --extra-index-url https://pypi.org/simple \
-      --index-strategy first-index \
-      -r src/model/${MODEL_NAME}/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    if [ "$MODEL_ACCELERATOR" = "cpu" ]; then \
+         /app/.venv/bin/pip install \
+           --index-url https://download.pytorch.org/whl/cpu \
+           --extra-index-url https://pypi.org/simple \
+           -r src/model/${MODEL_NAME}/requirements.txt \
+           -r src/model/${MODEL_NAME}/requirements.cpu.txt; \
+       elif [ "$MODEL_ACCELERATOR" = "gpu" ]; then \
+         /app/.venv/bin/pip install \
+           -r src/model/${MODEL_NAME}/requirements.txt \
+           -r src/model/${MODEL_NAME}/requirements.gpu.txt; \
+       else \
+         echo "Unsupported MODEL_ACCELERATOR: $MODEL_ACCELERATOR" >&2; \
+         exit 1; \
+       fi
 
 RUN mkdir -p /app/.cache /app/.cache/yolo /app/.config \
     && chmod -R 777 /app/.cache /app/.config

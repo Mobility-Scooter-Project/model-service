@@ -10,7 +10,7 @@ on:
       - "src/model/**"
       - ".github/workflows/build_and_push_models.yaml"
       - "Dockerfile"
-      - "reqirements.txt"
+      - "requirements.txt"
   workflow_dispatch:
     inputs:
       rebuild_all:
@@ -105,7 +105,7 @@ jobs:
             changed_files="${{ steps.changed-files.outputs.changed_files }}"
             
             # Check if Dockerfile, dependencies, or workflow changed - if so, rebuild ALL models
-            if echo "$changed_files" | grep -qE "(Dockerfile|pyproject\.toml|poetry\.lock|\.github/workflows/build_and_push_models\.yaml)"; then
+            if echo "$changed_files" | grep -qE "(Dockerfile|requirements\.txt|pyproject\.toml|poetry\.lock|\.github/workflows/build_and_push_models\.yaml)"; then
               echo "Infrastructure files changed - rebuilding ALL models"
               changed_models=("${all_models[@]}")
             else
@@ -152,6 +152,9 @@ jobs:
       max-parallel: 3
       matrix:
         model: ${{ fromJson(needs.discover-changed-models.outputs.models) }}
+        accelerator:
+          - cpu
+          - gpu
 
     steps:
       - name: Checkout repository
@@ -176,22 +179,26 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.model }}
           tags: |
-            type=ref,event=branch
-            type=raw,value=garrett-terraform-local-refactor,enable=${{ github.ref_name == 'garrett/terraform-local-refactor' }}
-            type=ref,event=tag,prefix=v
-            type=semver,pattern={{version}}
-            type=sha
-            ${{ github.ref_name == 'main' && 'latest' || '' }}
+            type=ref,event=branch,enable=${{ matrix.accelerator == 'cpu' }}
+            type=ref,event=branch,suffix=-gpu,enable=${{ matrix.accelerator == 'gpu' }}
+            type=ref,event=tag,prefix=v,enable=${{ matrix.accelerator == 'cpu' }}
+            type=ref,event=tag,prefix=v,suffix=-gpu,enable=${{ matrix.accelerator == 'gpu' }}
+            type=semver,pattern={{version}},enable=${{ matrix.accelerator == 'cpu' }}
+            type=semver,pattern={{version}},suffix=-gpu,enable=${{ matrix.accelerator == 'gpu' }}
+            type=sha,enable=${{ matrix.accelerator == 'cpu' }}
+            type=sha,suffix=-gpu,enable=${{ matrix.accelerator == 'gpu' }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' && matrix.accelerator == 'cpu' }}
+            type=raw,value=latest-gpu,enable=${{ github.ref_name == 'main' && matrix.accelerator == 'gpu' }}
           labels: |
             org.opencontainers.image.title=${{ matrix.model }}
-            org.opencontainers.image.description=Model service for ${{ matrix.model }}
+            org.opencontainers.image.description=Model service for ${{ matrix.model }} (${{ matrix.accelerator }})
 
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.accelerator == 'gpu' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -200,6 +207,7 @@ jobs:
           target: final
           build-args: |
             MODEL_NAME=${{ matrix.model }}
+            MODEL_ACCELERATOR=${{ matrix.accelerator }}
           provenance: false
           outputs: type=image,oci-mediatypes=true,compression=gzip,compression-level=6
 
