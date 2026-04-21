@@ -15,6 +15,7 @@ def _setup_warnings():
         lib_logger.propagate = False
 
 _setup_warnings()
+logger = logging.getLogger(__name__)
 
 import os
 import gc
@@ -39,6 +40,7 @@ class whisperx(ModelWrapper):
         self.model_size = os.getenv("WHISPERX_SIZE", "base")
         self.hf_token = os.getenv("HF_TOKEN")
         self.compute_type = os.getenv("COMPUTE_TYPE", "float16" if self.device == "cuda" else "int8")
+        self.batch_size = int(os.getenv("WHISPERX_BATCH_SIZE", str(self.batch_size)))
         self.vad_onset = float(os.getenv("VAD_ONSET", "0.500"))
         self.vad_offset = float(os.getenv("VAD_OFFSET", "0.363"))
 
@@ -64,7 +66,16 @@ class whisperx(ModelWrapper):
     def load_model(self):
         if not self.hf_token:
             raise ValueError("HF_TOKEN environment variable is required for diarization.")
-            
+
+        logger.info(
+            "Loading WhisperX model",
+            extra={
+                "device": self.device,
+                "model_size": self.model_size,
+                "compute_type": self.compute_type,
+                "batch_size": self.batch_size,
+            },
+        )
         with self._unsafe_torch_load():
             vad_options = {
                 "vad_onset": self.vad_onset,
@@ -94,23 +105,34 @@ class whisperx(ModelWrapper):
         file_path = ""
 
         try:
+            logger.info("Starting WhisperX request for %s", input)
             file_path = download_file(input, local_path, filename)
-            
+            logger.info("Downloaded audio to %s", file_path)
+
             audio = whisperx_lib.load_audio(file_path)
+            logger.info("Decoded audio successfully")
+
             result = self.whisper_model.transcribe(audio, batch_size=self.batch_size)
+            logger.info("Transcription complete")
 
             model_a, metadata = whisperx_lib.load_align_model(language_code=result["language"], device=self.device)
+            logger.info("Alignment model loaded for language %s", result["language"])
             result = whisperx_lib.align(result["segments"], model_a, metadata, audio, self.device, return_char_alignments=False)
+            logger.info("Alignment complete")
             del model_a
             gc.collect()
             torch.cuda.empty_cache()
 
             diarize_segments = self.diarize_model(audio, min_speakers=1, max_speakers=2)
+            logger.info("Diarization complete")
             result = whisperx_lib.assign_word_speakers(diarize_segments, result)
+            logger.info("Speaker assignment complete")
 
             res["data"] = self._format_transcript(result)
+            logger.info("Formatted WhisperX transcript with %d segments", len(res["data"]))
 
         except Exception as e:
+            logger.exception("WhisperX prediction failed")
             res["error"] = ModelError(message=str(e), status_code=500)
         finally:
             if os.path.exists(file_path):
