@@ -7,7 +7,7 @@ on:
       - garrett/terraform-local-refactor
       - main
     paths:
-      - "src/model/**"
+      - "src/**"
       - ".github/workflows/build_and_push_models.yaml"
       - "Dockerfile"
       - "requirements.txt"
@@ -104,12 +104,20 @@ jobs:
             # Automatic trigger based on file changes
             changed_files="${{ steps.changed-files.outputs.changed_files }}"
             
-            # Check if Dockerfile, dependencies, or workflow changed - if so, rebuild ALL models
-            if echo "$changed_files" | grep -qE "(Dockerfile|requirements\.txt|pyproject\.toml|poetry\.lock|\.github/workflows/build_and_push_models\.yaml)"; then
+            # Root-level build files affect every image, so rebuild them all.
+            if echo "$changed_files" | grep -qE "^(Dockerfile|requirements\.txt|pyproject\.toml|poetry\.lock|\.github/workflows/build_and_push_models\.yaml)$"; then
               echo "Infrastructure files changed - rebuilding ALL models"
               changed_models=("${all_models[@]}")
+            # Shared application files under src/ are copied into every model
+            # image, so changes outside model-specific directories also rebuild
+            # every model.
+            elif shared_src_changes=$(printf '%s\n' "$changed_files" | grep '^src/' | grep -vE '^src/model/[^/]+/' || true) && [ -n "$shared_src_changes" ]; then
+              echo "Shared application files changed - rebuilding ALL models"
+              echo "$shared_src_changes"
+              changed_models=("${all_models[@]}")
             else
-              # Only specific model directories changed
+              # Changes confined to individual model directories only rebuild
+              # those specific models.
               changed_models=()
               for model in "${all_models[@]}"; do
                 if echo "$changed_files" | grep -q "src/model/$model/"; then

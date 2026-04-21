@@ -5,9 +5,10 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_TOOL_BIN_DIR=/usr/local/bin
 
 WORKDIR /app
-    
+
+COPY requirements.txt ./requirements.txt
+
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
     uv venv && uv pip install -r requirements.txt
 
 FROM base AS final
@@ -25,13 +26,19 @@ RUN apt-get update \
 
 COPY --from=base /app/.venv /app/.venv
 
-COPY ./src ./src
+COPY src/model/${MODEL_NAME}/requirements.txt /tmp/model-requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install \
       --python /app/.venv/bin/python \
       --torch-backend auto \
-      -r src/model/${MODEL_NAME}/requirements.txt
+      -r /tmp/model-requirements.txt
+
+COPY src/__init__.py src/main.py ./src/
+COPY src/lib ./src/lib
+COPY src/utils ./src/utils
+COPY src/model/__init__.py ./src/model/__init__.py
+COPY src/model/${MODEL_NAME} ./src/model/${MODEL_NAME}
 
 RUN mkdir -p /app/.cache /app/.cache/yolo /app/.config \
     && chmod -R 777 /app/.cache /app/.config
