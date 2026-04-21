@@ -9,9 +9,5 @@ Host: models.local
 Content-Type: application/json
 
 {
-  "input": "http://192.168.124.1:8001/voice-message.m4a"
+  "input": "https://js2.jetstream-cloud.org:8001/swift/v1/public/sample.m4a"
 }
-
-# {
-#   "input": "https://audio.buzzsprout.com/ztnzctcupk3ki3jczmm9389vqky4?response-content-disposition=inline"
-# }
