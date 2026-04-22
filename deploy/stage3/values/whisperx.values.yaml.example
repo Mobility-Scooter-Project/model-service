@@ -8,33 +8,31 @@ image:
   repository: ghcr.io/mobility-scooter-project/model-service/whisperx
   tag: garrett-terraform-local-refactor
 
-serviceAccount:
-  create: false
-  name: model-service-runtime
+api:
+  replicas: 1
 
-httpScaledObject:
-  replicas:
-    min: 0
-    max: 1
-  scaledownPeriod: 300
-  concurrencyTarget: 1
+worker:
+  autoscaling:
+    minReplicas: 0
+    maxReplicas: 1
+    listLength: 1
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "1500m"
+      memory: "3Gi"
 
-extraEnv:
-  WHISPERX_SIZE: base
-  COMPUTE_TYPE: int8
+workerExtraEnv:
+  COMPUTE_TYPE: float32
+  WHISPERX_BATCH_SIZE: "4"
+  WHISPERX_SIZE: tiny
 
-extraSecretEnv:
+workerExtraSecretEnv:
   - name: HF_TOKEN
     secretName: whisperx-env
     key: HF_TOKEN
-
-resources:
-  requests:
-    cpu: "1500m"
-    memory: "4Gi"
-  limits:
-    cpu: "3000m"
-    memory: "8Gi"
 
 cache:
   size: 20Gi

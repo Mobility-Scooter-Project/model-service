@@ -1,8 +1,9 @@
 Stage 3 installs one release per model image.
 
 The external route for this release is:
-  http://{{ .Values.host }}{{ .Values.pathPrefix }}/predict
+  http://{{ .Values.host }}{{ .Values.pathPrefix }}/jobs
 
-The KEDA HTTP add-on watches:
-  hosts={{ default (list .Values.host) .Values.httpScaledObject.hosts }}
-  pathPrefixes={{ default (list .Values.pathPrefix) .Values.httpScaledObject.pathPrefixes }}
+This release creates:
+  - always-on API deployment: {{ include "model-service-stage3.apiName" . }}
+  - queue worker deployment: {{ include "model-service-stage3.workerName" . }}
+  - Redis-scaled worker queue: {{ include "model-service-stage3.queueName" . }}

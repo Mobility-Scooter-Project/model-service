@@ -1,13 +1,18 @@
-@ingressIp = 10.42.0.10
-@baseUrl = http://{{ingressIp}}/api/v1/whisperx
+@baseUrl = http://10.42.0.10/api/v1/whisperx
+@jobId = REPLACE_WITH_JOB_ID
 
-# Stage 3 ingress request through Traefik and the KEDA HTTP add-on.
-# Uses the ingress IP directly so REST clients do not depend on local DNS.
-# The `Host` header still targets the `models.local` ingress rule.
-POST {{baseUrl}}/predict
+# Submit a WhisperX job through the async API.
+POST {{baseUrl}}/jobs
 Host: models.local
 Content-Type: application/json
 
 {
-  "input": "https://js2.jetstream-cloud.org:8001/swift/v1/public/sample.m4a"
+  "get_url": "https://js2.jetstream-cloud.org:8001/swift/v1/public/sample.m4a"
 }
+
+###
+
+# Poll the job until it returns `status: succeeded`, then download the large
+# JSON payload directly from the returned `result_get_url`.
+GET {{baseUrl}}/jobs/{{jobId}}
+Host: models.local

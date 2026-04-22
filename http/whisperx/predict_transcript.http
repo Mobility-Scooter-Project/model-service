@@ -1,8 +1,0 @@
-@baseUrl = http://localhost:8000/api/v1/whisperx
-
-POST {{baseUrl}}/predict
-Content-Type: application/json
-
-{
-    "input": "https://audio.buzzsprout.com/ztnzctcupk3ki3jczmm9389vqky4?response-content-disposition=inline"
-}

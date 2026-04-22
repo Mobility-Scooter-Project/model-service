@@ -31,6 +31,24 @@ app.kubernetes.io/name: {{ include "model-service-stage3.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "model-service-stage3.apiName" -}}
+{{- include "model-service-stage3.fullname" . -}}
+{{- end -}}
+
+{{- define "model-service-stage3.workerName" -}}
+{{- printf "%s-worker" (include "model-service-stage3.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "model-service-stage3.apiSelectorLabels" -}}
+{{ include "model-service-stage3.selectorLabels" . }}
+app.kubernetes.io/component: api
+{{- end -}}
+
+{{- define "model-service-stage3.workerSelectorLabels" -}}
+{{ include "model-service-stage3.selectorLabels" . }}
+app.kubernetes.io/component: worker
+{{- end -}}
+
 {{- define "model-service-stage3.cachePvcName" -}}
 {{- printf "%s-cache" (include "model-service-stage3.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -53,4 +71,8 @@ default
 {{- else -}}
 {{- printf "%s-env" (include "model-service-stage3.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "model-service-stage3.queueName" -}}
+{{- printf "%s:%s:jobs" .Values.runtime.redisKeyPrefix .Values.modelName -}}
 {{- end -}}

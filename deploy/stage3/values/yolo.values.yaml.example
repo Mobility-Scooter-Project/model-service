@@ -7,24 +7,28 @@ image:
   repository: ghcr.io/mobility-scooter-project/model-service/yolo
   tag: garrett-terraform-local-refactor
 
-serviceAccount:
-  create: false
-  name: model-service-runtime
+api:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
 
-httpScaledObject:
-  replicas:
-    min: 0
-    max: 1
-  scaledownPeriod: 300
-  concurrencyTarget: 1
-
-resources:
-  requests:
-    cpu: "250m"
-    memory: "1Gi"
-  limits:
-    cpu: "1000m"
-    memory: "2Gi"
+worker:
+  autoscaling:
+    minReplicas: 0
+    maxReplicas: 1
+    listLength: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
 
 cache:
   size: 10Gi

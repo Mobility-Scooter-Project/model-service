@@ -25,9 +25,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ .Values.interceptor.serviceName }}
+                name: {{ include "model-service-stage3.apiName" . }}
                 port:
-                  number: {{ .Values.interceptor.servicePort }}
+                  number: {{ .Values.api.service.port }}
   {{- with .Values.ingress.tls }}
   tls:
     {{- toYaml . | nindent 4 }}

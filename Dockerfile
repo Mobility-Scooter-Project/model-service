@@ -34,9 +34,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       --torch-backend auto \
       -r /tmp/model-requirements.txt
 
-COPY src/__init__.py src/main.py ./src/
+COPY src/__init__.py src/main.py src/config.py ./src/
+COPY src/jobs ./src/jobs
 COPY src/lib ./src/lib
+COPY src/storage ./src/storage
 COPY src/utils ./src/utils
+COPY src/webhooks ./src/webhooks
+COPY src/worker ./src/worker
 COPY src/model/__init__.py ./src/model/__init__.py
 COPY src/model/${MODEL_NAME} ./src/model/${MODEL_NAME}
 

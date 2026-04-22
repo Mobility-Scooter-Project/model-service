@@ -1,0 +1,130 @@
+{{- $profile := (default dict (get .Values.hardwareProfiles .Values.hardwareProfile)) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "model-service-stage3.apiName" . }}
+  namespace: {{ include "model-service-stage3.namespace" . }}
+  labels:
+    {{- include "model-service-stage3.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "model-service-stage3.apiSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "model-service-stage3.apiSelectorLabels" . | nindent 8 }}
+        model-service.io/hardware-profile: {{ .Values.hardwareProfile | quote }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "model-service-stage3.serviceAccountName" . }}
+      {{- with $profile.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $profile.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $profile.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "model-service-stage3.apiName" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.service.targetPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.platform.configMapName }}
+            - secretRef:
+                name: {{ .Values.platform.secretName }}
+          env:
+            - name: MODEL_NAME
+              value: {{ .Values.modelName | quote }}
+            - name: API_BASE_PATH
+              value: {{ default .Values.pathPrefix .Values.runtime.apiBasePath | quote }}
+            - name: APP_ROLE
+              value: "api"
+            - name: REDIS_KEY_PREFIX
+              value: {{ .Values.runtime.redisKeyPrefix | quote }}
+            - name: JOB_TTL_SECONDS
+              value: {{ .Values.runtime.jobTtlSeconds | quote }}
+            - name: RESULT_PUT_URL_TTL_SECONDS
+              value: {{ .Values.runtime.resultPutUrlTtlSeconds | quote }}
+            - name: RESULT_GET_URL_TTL_SECONDS
+              value: {{ .Values.runtime.resultGetUrlTtlSeconds | quote }}
+            - name: WEBHOOK_TIMEOUT_SECONDS
+              value: {{ .Values.runtime.webhookTimeoutSeconds | quote }}
+            {{- range $name := keys .Values.extraEnv | sortAlpha }}
+            - name: {{ $name }}
+              value: {{ index $.Values.extraEnv $name | quote }}
+            {{- end }}
+            {{- range $name := keys .Values.apiExtraEnv | sortAlpha }}
+            - name: {{ $name }}
+              value: {{ index $.Values.apiExtraEnv $name | quote }}
+            {{- end }}
+            {{- if and .Values.appSecret.create (gt (len .Values.appSecret.stringData) 0) }}
+            {{- range $name := keys .Values.appSecret.stringData | sortAlpha }}
+            - name: {{ $name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "model-service-stage3.appSecretName" $ }}
+                  key: {{ $name }}
+            {{- end }}
+            {{- end }}
+            {{- range .Values.extraSecretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- range .Values.apiExtraSecretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          {{- if .Values.api.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.api.probes.startup.path | quote }}
+              port: http
+            periodSeconds: {{ .Values.api.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.api.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.probes.readiness.path | quote }}
+              port: http
+            periodSeconds: {{ .Values.api.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.probes.readiness.failureThreshold }}
+            successThreshold: {{ .Values.api.probes.readiness.successThreshold }}
+          {{- end }}
+          {{- if .Values.api.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.probes.liveness.path | quote }}
+              port: http
+            periodSeconds: {{ .Values.api.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.probes.liveness.failureThreshold }}
+          {{- end }}

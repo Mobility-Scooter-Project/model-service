@@ -109,11 +109,17 @@ class whisperx(ModelWrapper):
         filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
         local_path = "/tmp/whisperx"
         file_path = ""
+        cleanup_downloaded_file = False
 
         try:
             logger.info("Starting WhisperX request for %s", input)
-            file_path = download_file(input, local_path, filename)
-            logger.info("Downloaded audio to %s", file_path)
+            if isinstance(input, str) and os.path.exists(input):
+                file_path = input
+                logger.info("Using pre-downloaded local audio at %s", file_path)
+            else:
+                file_path = download_file(input, local_path, filename)
+                cleanup_downloaded_file = True
+                logger.info("Downloaded audio to %s", file_path)
 
             audio = whisperx_lib.load_audio(file_path)
             logger.info("Decoded audio successfully")
@@ -141,7 +147,7 @@ class whisperx(ModelWrapper):
             logger.exception("WhisperX prediction failed")
             res["error"] = ModelError(message=str(e), status_code=500)
         finally:
-            if os.path.exists(file_path):
+            if cleanup_downloaded_file and os.path.exists(file_path):
                 os.remove(file_path)
             return res
 

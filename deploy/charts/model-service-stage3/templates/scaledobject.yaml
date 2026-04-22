@@ -1,0 +1,37 @@
+{{- if .Values.worker.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "model-service-stage3.workerName" . }}-redis-auth
+  namespace: {{ include "model-service-stage3.namespace" . }}
+  labels:
+    {{- include "model-service-stage3.labels" . | nindent 4 }}
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: {{ .Values.platform.secretName }}
+      key: REDIS_PASSWORD
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "model-service-stage3.workerName" . }}
+  namespace: {{ include "model-service-stage3.namespace" . }}
+  labels:
+    {{- include "model-service-stage3.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "model-service-stage3.workerName" . }}
+  pollingInterval: {{ .Values.worker.autoscaling.pollingInterval }}
+  cooldownPeriod: {{ .Values.worker.autoscaling.cooldownPeriod }}
+  minReplicaCount: {{ .Values.worker.autoscaling.minReplicas }}
+  maxReplicaCount: {{ .Values.worker.autoscaling.maxReplicas }}
+  triggers:
+    - type: redis
+      metadata:
+        address: {{ .Values.worker.autoscaling.redisAddress | quote }}
+        listName: {{ include "model-service-stage3.queueName" . | quote }}
+        listLength: {{ .Values.worker.autoscaling.listLength | quote }}
+      authenticationRef:
+        name: {{ include "model-service-stage3.workerName" . }}-redis-auth
+{{- end }}
