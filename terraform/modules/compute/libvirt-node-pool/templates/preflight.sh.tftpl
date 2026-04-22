@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# This script prepares the guest for Kubernetes before k3s is installed.
+# It is intentionally host-focused:
+# - disable swap, because kubelet refuses to run with swap enabled by default
+# - load the kernel modules Kubernetes networking depends on
+# - apply sysctls for bridged traffic and forwarding
+# - mount the attached qcow2-backed data disk using its stable by-id path
+
+DATA_DISK_ID="${data_disk_id}"
+DATA_DISK_BY_ID="${data_disk_by_id}"
+DATA_MOUNT_PATH="${data_mount_path}"
+
+swapoff -a || true
+sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab || true
+
+modprobe overlay
+modprobe br_netfilter
+sysctl --system
+
+# Wait for udev to create the stable by-id symlink. This is the key safety
+# guard that keeps us away from guessing `/dev/vdb` vs `/dev/vdc`.
+for _ in $(seq 1 60); do
+  if [ -e "$${DATA_DISK_BY_ID}" ]; then
+    break
+  fi
+  udevadm settle || true
+  sleep 2
+done
+
+if [ ! -e "$${DATA_DISK_BY_ID}" ]; then
+  echo "Expected data disk $${DATA_DISK_BY_ID} for $${DATA_DISK_ID}, but it never appeared" >&2
+  exit 1
+fi
+
+DATA_DEVICE="$(readlink -f "$${DATA_DISK_BY_ID}")"
+
+# Only create a filesystem if the disk is blank. This makes destroy/apply
+# cycles friendlier when `retain_on_destroy=true`.
+if ! blkid "$${DATA_DEVICE}" >/dev/null 2>&1; then
+  mkfs.ext4 -F -L "$${DATA_DISK_ID}" "$${DATA_DEVICE}"
+fi
+
+mkdir -p "$${DATA_MOUNT_PATH}"
+DISK_UUID="$(blkid -s UUID -o value "$${DATA_DEVICE}")"
+
+if ! grep -q "$${DISK_UUID}" /etc/fstab; then
+  echo "UUID=$${DISK_UUID} $${DATA_MOUNT_PATH} ext4 defaults,nofail 0 2" >> /etc/fstab
+fi
+
+mount "$${DATA_MOUNT_PATH}" || mount -a

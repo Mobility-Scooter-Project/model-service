@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Apply the Stage 3 platform layer before installing any model releases.
+resources:
+  - 20-model-service-base.yaml
+  - 10-platform-services.yaml

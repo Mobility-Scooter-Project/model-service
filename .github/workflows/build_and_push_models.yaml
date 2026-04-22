@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - develop
+      - garrett/terraform-local-refactor
       - main
     paths:
-      - "src/model/**"
+      - "src/**"
       - ".github/workflows/build_and_push_models.yaml"
       - "Dockerfile"
       - "requirements.txt"
@@ -103,12 +104,20 @@ jobs:
             # Automatic trigger based on file changes
             changed_files="${{ steps.changed-files.outputs.changed_files }}"
             
-            # Check if Dockerfile, dependencies, or workflow changed - if so, rebuild ALL models
-            if echo "$changed_files" | grep -qE "(Dockerfile|pyproject\.toml|poetry\.lock|\.github/workflows/build_and_push_models\.yaml)"; then
+            # Root-level build files affect every image, so rebuild them all.
+            if echo "$changed_files" | grep -qE "^(Dockerfile|requirements\.txt|pyproject\.toml|poetry\.lock|\.github/workflows/build_and_push_models\.yaml)$"; then
               echo "Infrastructure files changed - rebuilding ALL models"
               changed_models=("${all_models[@]}")
+            # Shared application files under src/ are copied into every model
+            # image, so changes outside model-specific directories also rebuild
+            # every model.
+            elif shared_src_changes=$(printf '%s\n' "$changed_files" | grep '^src/' | grep -vE '^src/model/[^/]+/' || true) && [ -n "$shared_src_changes" ]; then
+              echo "Shared application files changed - rebuilding ALL models"
+              echo "$shared_src_changes"
+              changed_models=("${all_models[@]}")
             else
-              # Only specific model directories changed
+              # Changes confined to individual model directories only rebuild
+              # those specific models.
               changed_models=()
               for model in "${all_models[@]}"; do
                 if echo "$changed_files" | grep -q "src/model/$model/"; then
@@ -138,10 +147,7 @@ jobs:
 
   build-and-push:
     needs: discover-changed-models
-    runs-on: arc-runner-set
-    container:
-      image: ubuntu:22.04
-      options: --user root
+    runs-on: ubuntu-latest
 
     if: ${{ needs.discover-changed-models.outputs.models != '[]' }}
     permissions:
@@ -159,21 +165,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Docker CLI
-        run: |
-          apt-get update
-          apt-get install -y ca-certificates curl
-          install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-          chmod a+r /etc/apt/keyrings/docker.asc
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-          apt-get update
-          apt-get install -y docker-ce-cli docker-buildx-plugin
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: kubernetes
 
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
@@ -189,11 +185,10 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.model }}
           tags: |
             type=ref,event=branch
-            type=raw,value=${{ github.head_ref }}
             type=ref,event=tag,prefix=v
             type=semver,pattern={{version}}
             type=sha
-            ${{ github.ref_name == 'main' && 'latest' || '' }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
           labels: |
             org.opencontainers.image.title=${{ matrix.model }}
             org.opencontainers.image.description=Model service for ${{ matrix.model }}

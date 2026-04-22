@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import TypedDict, Dict, List, Any
+import importlib
+from typing import TypedDict, Dict, List
 import torch
 
 class ModelError(TypedDict):
@@ -28,3 +29,13 @@ class ModelWrapper(ABC):
     
     def __str__(self):
         return f"Model Name: {self.model_name} Output Fields: {self.output_fields}"
+
+
+def create_model(model_name: str) -> "ModelWrapper":
+    try:
+        module = importlib.import_module(f".{model_name}", package="src.model")
+        return getattr(module, model_name)()
+    except ModuleNotFoundError as exc:
+        raise ValueError(f"model {model_name} not found: {exc}") from exc
+    except AttributeError as exc:
+        raise ValueError(f"model class {model_name} not found or failed to load: {exc}") from exc

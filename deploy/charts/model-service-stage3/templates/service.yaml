@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "model-service-stage3.apiName" . }}
+  namespace: {{ include "model-service-stage3.namespace" . }}
+  labels:
+    {{- include "model-service-stage3.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "model-service-stage3.apiSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.api.service.port }}
+      targetPort: {{ .Values.api.service.targetPort }}
+      protocol: TCP

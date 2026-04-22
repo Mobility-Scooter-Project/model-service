@@ -1,3 +1,4 @@
-# retreives model info for whisperx
+# retrieves model info for whisperx
 
-GET http://localhost:8000/api/v1/whisperx/info
+GET http://10.42.0.10/api/v1/whisperx/info
+Host: models.local

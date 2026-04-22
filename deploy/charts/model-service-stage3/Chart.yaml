@@ -1,0 +1,6 @@
+apiVersion: v2
+name: model-service-stage3
+description: Direct-apply Stage 3 chart for async API plus queue-scaled model workers.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

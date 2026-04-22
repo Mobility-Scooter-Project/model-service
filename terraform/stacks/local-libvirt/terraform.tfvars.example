@@ -1,0 +1,238 @@
+# Example input file for the local libvirt lab.
+# Copy this to `terraform.tfvars` and then replace placeholder values.
+#
+# This file is written as a guided walkthrough:
+# 1. choose how Terraform connects to libvirt
+# 2. provide cloud-init SSH access
+# 3. define storage paths
+# 4. define networks
+# 5. define VM pools
+# 6. review the Stage 2 Kubernetes bootstrap defaults
+
+# Prefix added to networks, pools, disks, and VM names. Change this if you want
+# a second lab on the same laptop without colliding with the first one.
+name_prefix = "model-service-lab"
+
+# Most Linux hosts use the system daemon. If your user owns the libvirt session
+# instead, switch to `qemu:///session`.
+libvirt_uri = "qemu:///system"
+# If your host only exposes a user-session socket, use:
+# libvirt_uri = "qemu:///session"
+#
+# If your host has no /dev/kvm or kvm-ok reports no KVM support, use:
+# domain_type = "qemu"
+#
+# The default CPU mode is `host-model`, which works on both `kvm` and `qemu`.
+# If you are using `kvm` and need the maximum host instruction coverage for
+# local ML workloads, you can opt into:
+# cpu_mode = "host-passthrough"
+#
+# If you are running libvirt from WSL2, also enable the compatibility mode
+# below so the guests use fully static IPs instead of depending on libvirt DHCP.
+# wsl2_compatibility_mode = true
+
+# Cloud-init injects SSH access on first boot. Paste the full contents of your
+# `.pub` key file here, not the private key.
+cloud_init = {
+  ssh_authorized_keys = [
+    "PUBLIC SSH KEY HERE"
+  ]
+}
+
+# These paths live on the libvirt host, not inside the guest VMs.
+# - `image_store_path`: immutable base image cache
+# - `volume_store_path`: mutable per-node disks
+storage = {
+  image_store_path     = "/var/lib/libvirt/images/model-service-lab/base"
+  volume_store_path    = "/var/lib/libvirt/images/model-service-lab/volumes"
+  base_image_name      = "jammy-server-cloudimg-amd64.img"
+  base_image_source    = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+  retain_on_destroy    = false
+  default_root_disk_gb = 30
+  default_data_disk_gb = 100
+}
+
+# Three-network layout:
+# - external: SSH / ingress / "public" traffic
+# - cluster: internal node-to-node traffic
+# - storage: storage or backend traffic
+networks = {
+  external = {
+    enabled    = true
+    mode       = "nat"
+    domain     = "external.local"
+    cidr       = "192.168.124.0/24"
+    gateway    = "192.168.124.1"
+    dhcp_range = { start = "192.168.124.50", end = "192.168.124.200" }
+    dns        = ["1.1.1.1", "8.8.8.8"]
+    mtu        = 1450
+
+    # `wait_for_lease` tells Terraform whether to block waiting for libvirt to
+    # observe a guest IP. This is helpful on fast KVM hosts, but can time out
+    # on slow QEMU-only machines.
+    wait_for_lease = true
+    address_mode   = "dynamic"
+    reservations   = {}
+  }
+  cluster = {
+    enabled    = true
+    mode       = "none"
+    domain     = "cluster.local"
+    cidr       = "10.42.0.0/24"
+    gateway    = "10.42.0.1"
+    dhcp_range = { start = "10.42.0.100", end = "10.42.0.200" }
+    dns        = ["10.42.0.1"]
+    mtu        = 1450
+    wait_for_lease = false
+
+    # `dhcp_reserved` means the guest still uses DHCP, but libvirt is expected
+    # to hand out a predictable address when the reservation exists.
+    address_mode = "dhcp_reserved"
+    reservations = {
+      # Keep the control plane on a stable cluster IP so future join commands
+      # and kubeconfigs can target a well-known endpoint.
+      control-plane-01 = {
+        ip       = "10.42.0.10"
+        hostname = "control-plane-01"
+      }
+    }
+  }
+  storage = {
+    enabled    = true
+    mode       = "none"
+    domain     = "storage.local"
+    cidr       = "10.43.0.0/24"
+    gateway    = "10.43.0.1"
+    dhcp_range = { start = "10.43.0.100", end = "10.43.0.200" }
+    dns        = []
+    mtu        = 1450
+    wait_for_lease = false
+    address_mode   = "dynamic"
+    reservations   = {}
+  }
+}
+
+# Node pools define the VM "classes" in the lab. This mirrors how Kubernetes
+# operators often think about nodes: control planes, CPU workers, GPU workers.
+node_pools = {
+  control_plane = {
+    count        = 1
+    vcpu         = 2
+    memory_mb    = 4096
+    root_disk_gb = 30
+    data_disk_gb = 80
+    networks     = ["external", "cluster", "storage"]
+    labels = {
+      role = "control-plane"
+    }
+  }
+
+  # These workers are the default place to run the model-service workloads in a
+  # future Kubernetes bootstrap stage.
+  workers_cpu = {
+    count        = 2
+    vcpu         = 4
+    memory_mb    = 8192
+    root_disk_gb = 40
+    data_disk_gb = 100
+    networks     = ["external", "cluster", "storage"]
+    labels = {
+      role = "worker"
+      tier = "cpu"
+    }
+  }
+
+  # Disabled by default because local GPU passthrough requires manual host
+  # setup outside Terraform (IOMMU, VFIO binding, isolated PCI devices).
+  workers_gpu = {
+    count        = 0
+    vcpu         = 8
+    memory_mb    = 16384
+    root_disk_gb = 60
+    data_disk_gb = 200
+    networks     = ["external", "cluster", "storage"]
+    gpu_enabled  = true
+    labels = {
+      role = "worker"
+      tier = "gpu"
+    }
+  }
+}
+
+# Stage 2 bootstrap defaults:
+# - installs k3s on first boot using cloud-init only
+# - points workers at the fixed control-plane address on the cluster network
+# - replaces k3s flannel with Cilium using an explicit MTU
+# - keeps Traefik and local-path storage enabled
+# - installs Node Feature Discovery and KEDA core on the control plane
+#
+# Important networking note:
+# The pod/service CIDRs below are intentionally different from the libvirt
+# underlay networks above. Do not reuse 10.42.0.0/24 or 10.43.0.0/24 here.
+kubernetes_bootstrap = {
+  distribution           = "k3s"
+  control_plane_endpoint = "10.42.0.10"
+  pod_cidr               = "10.244.0.0/16"
+  service_cidr           = "10.96.0.0/12"
+  underlay_mtu           = 1450
+  cilium_mtu             = 1400
+  data_mount_path        = "/var/lib/model-service-local"
+  cluster_network_name   = "cluster"
+  storage_network_name   = "storage"
+  k3s_channel            = "stable"
+  install_cilium         = true
+  install_nfd            = true
+  install_keda           = true
+  install_metrics_server = true
+  keep_traefik           = true
+
+  # If you omit `cluster_token`, Terraform derives a local-only default from
+  # `name_prefix`. Set it explicitly if you want a stable shared secret across
+  # multiple environments.
+  # cluster_token = "replace-me-with-a-local-cluster-token"
+
+  cilium = {
+    # Leave null to follow the latest chart in the repository, or set an
+    # explicit version when you want repeatable upgrades.
+    chart_version  = null
+    hubble_enabled = false
+  }
+
+  nfd = {
+    chart_version = null
+  }
+
+  keda = {
+    chart_version = null
+  }
+
+  # Optional GHCR pull-secret contract for private model images. If your GHCR
+  # packages are public, leave `create_pull_secret = false`.
+  ghcr = {
+    create_pull_secret = false
+    registry           = "ghcr.io"
+    secret_name        = "ghcr-pull-secret"
+    # username = "YOUR_GITHUB_USERNAME"
+    # password = "YOUR_GHCR_TOKEN"
+    email = ""
+  }
+}
+
+# Example GPU passthrough inputs for a single logical node:
+# - `mode` enables the experimental local-only passthrough path.
+# - each PCI device must match a host device that libvirt can attach.
+# Reference: https://libvirt.org/formatdomain.html#host-device-assignment
+# gpu = {
+#   mode = "manual_host_passthrough"
+#   pci_devices = {
+#     workers-gpu-01 = [
+#       {
+#         domain   = "0000"
+#         bus      = "01"
+#         slot     = "00"
+#         function = "0"
+#         managed  = true
+#       }
+#     ]
+#   }
+# }

@@ -1,0 +1,142 @@
+# Install one Helm release per model image. The release name becomes both the
+# always-on API service identity and the queue worker identity.
+nameOverride: ""
+fullnameOverride: ""
+namespaceOverride: ""
+
+modelName: whisperx
+host: models.local
+pathPrefix: /api/v1/whisperx
+
+image:
+  repository: ghcr.io/mobility-scooter-project/model-service/whisperx
+  tag: latest
+  pullPolicy: IfNotPresent
+
+platform:
+  configMapName: model-service-platform-config
+  secretName: model-service-platform-secrets
+
+api:
+  replicas: 1
+  service:
+    port: 8000
+    targetPort: 8000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  probes:
+    startup:
+      enabled: true
+      path: /info
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 30
+    readiness:
+      enabled: true
+      path: /info
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    liveness:
+      enabled: true
+      path: /info
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+
+worker:
+  enabled: true
+  replicas: 0
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+  autoscaling:
+    minReplicas: 0
+    maxReplicas: 1
+    listLength: 1
+    pollingInterval: 15
+    cooldownPeriod: 300
+    redisAddress: redis.model-service.svc.cluster.local:6379
+  podLabels: {}
+  podAnnotations: {}
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  labels: {}
+  tls: []
+
+cache:
+  enabled: true
+  mountPath: /app/.cache
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi
+
+runtime:
+  apiBasePath: ""
+  torchHome: /app/.cache/torch
+  hfHome: /app/.cache/huggingface
+  yoloConfigDir: /app/.cache/yolo
+  modelCacheDir: /app/.cache
+  redisKeyPrefix: model-service
+  jobTtlSeconds: 86400
+  resultPutUrlTtlSeconds: 86400
+  resultGetUrlTtlSeconds: 900
+  webhookTimeoutSeconds: 10
+  queueBlockTimeoutSeconds: 5
+  workerTempDir: /tmp/model-service-jobs
+
+serviceAccount:
+  create: false
+  name: model-service-runtime
+  annotations: {}
+  imagePullSecrets:
+    - ghcr-pull-secret
+
+imagePullSecret:
+  create: false
+  name: ghcr-pull-secret
+  dockerconfigjson: ""
+
+appSecret:
+  create: false
+  name: ""
+  stringData: {}
+
+extraEnv: {}
+apiExtraEnv: {}
+workerExtraEnv: {}
+extraSecretEnv: []
+apiExtraSecretEnv: []
+workerExtraSecretEnv: []
+
+hardwareProfile: cpu
+hardwareProfiles:
+  cpu:
+    nodeSelector:
+      model-service.io/node-class: cpu
+    tolerations: []
+    affinity: {}
+  gpu:
+    nodeSelector:
+      model-service.io/gpu-candidate: "true"
+    tolerations: []
+    affinity: {}
+
+podLabels: {}
+podAnnotations: {}
+extraVolumes: []
+extraVolumeMounts: []

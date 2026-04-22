@@ -15,6 +15,13 @@ def _setup_warnings():
         lib_logger.propagate = False
 
 _setup_warnings()
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s"))
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 import os
 import gc
@@ -27,30 +34,19 @@ from collections import defaultdict
 from .. import ModelWrapper, ModelResult, ModelError
 from ...utils.remote import download_file
 
-
-def _env_flag(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.lower() in {"1", "true", "yes", "on"}
-
-
 class whisperx(ModelWrapper):
+    """Diarized transcription model packaged as a standalone GHCR image."""
+
     def __init__(self):
-        default_batch_size = 16 if torch.cuda.is_available() else 4
-        super().__init__(
-            "whisperx",
-            batch_size=int(os.getenv("WHISPERX_BATCH_SIZE", str(default_batch_size))),
-            output_fields=["transcript"],
-        )
+        super().__init__("whisperx", batch_size=16, output_fields=["transcript"])
         self.whisper_model = None
         self.diarize_model = None
         
         # Configurations
-        self.model_size = os.getenv("WHISPERX_SIZE", "base" if self.device == "cuda" else "tiny")
+        self.model_size = os.getenv("WHISPERX_SIZE", "base")
         self.hf_token = os.getenv("HF_TOKEN")
         self.compute_type = os.getenv("COMPUTE_TYPE", "float16" if self.device == "cuda" else "int8")
-        self.enable_diarization = _env_flag("WHISPERX_ENABLE_DIARIZATION", self.device == "cuda")
+        self.batch_size = int(os.getenv("WHISPERX_BATCH_SIZE", str(self.batch_size)))
         self.vad_onset = float(os.getenv("VAD_ONSET", "0.500"))
         self.vad_offset = float(os.getenv("VAD_OFFSET", "0.363"))
 
@@ -74,6 +70,18 @@ class whisperx(ModelWrapper):
             torch.backends.cudnn.allow_tf32 = orig_cudnn
 
     def load_model(self):
+        if not self.hf_token:
+            raise ValueError("HF_TOKEN environment variable is required for diarization.")
+
+        logger.info(
+            "Loading WhisperX model",
+            extra={
+                "device": self.device,
+                "model_size": self.model_size,
+                "compute_type": self.compute_type,
+                "batch_size": self.batch_size,
+            },
+        )
         with self._unsafe_torch_load():
             vad_options = {
                 "vad_onset": self.vad_onset,
@@ -86,65 +94,64 @@ class whisperx(ModelWrapper):
                 compute_type=self.compute_type,
                 vad_options=vad_options,
             )
-
-            if self.enable_diarization:
-                if not self.hf_token:
-                    raise ValueError("HF_TOKEN environment variable is required when diarization is enabled.")
-
-                from whisperx.diarize import DiarizationPipeline
-
-                self.diarize_model = DiarizationPipeline(
-                    token=self.hf_token,
-                    device=self.device,
-                )
+            
+            from whisperx.diarize import DiarizationPipeline
+            self.diarize_model = DiarizationPipeline(
+                token=self.hf_token,
+                device=self.device,
+            )
 
     def predict(self, input, fields=["transcript"]):
-        if not self.whisper_model:
+        if not self.whisper_model or not self.diarize_model:
             raise ValueError("Model not loaded. Call load_model() before predict().")
 
         res = ModelResult(data=None, error=None, metadata={"device": self.device})
         filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
         local_path = "/tmp/whisperx"
         file_path = ""
+        cleanup_downloaded_file = False
 
         try:
-            file_path = download_file(input, local_path, filename)
-            
+            logger.info("Starting WhisperX request for %s", input)
+            if isinstance(input, str) and os.path.exists(input):
+                file_path = input
+                logger.info("Using pre-downloaded local audio at %s", file_path)
+            else:
+                file_path = download_file(input, local_path, filename)
+                cleanup_downloaded_file = True
+                logger.info("Downloaded audio to %s", file_path)
+
             audio = whisperx_lib.load_audio(file_path)
+            logger.info("Decoded audio successfully")
+
             result = self.whisper_model.transcribe(audio, batch_size=self.batch_size)
+            logger.info("Transcription complete")
 
             model_a, metadata = whisperx_lib.load_align_model(language_code=result["language"], device=self.device)
+            logger.info("Alignment model loaded for language %s", result["language"])
             result = whisperx_lib.align(result["segments"], model_a, metadata, audio, self.device, return_char_alignments=False)
+            logger.info("Alignment complete")
             del model_a
             gc.collect()
-            if self.device == "cuda":
-                torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
-            if self.enable_diarization and self.diarize_model:
-                diarize_segments = self.diarize_model(audio, min_speakers=1, max_speakers=2)
-                result = whisperx_lib.assign_word_speakers(diarize_segments, result)
+            diarize_segments = self.diarize_model(audio, min_speakers=1, max_speakers=2)
+            logger.info("Diarization complete")
+            result = whisperx_lib.assign_word_speakers(diarize_segments, result)
+            logger.info("Speaker assignment complete")
 
             res["data"] = self._format_transcript(result)
+            logger.info("Formatted WhisperX transcript with %d segments", len(res["data"]))
 
         except Exception as e:
+            logger.exception("WhisperX prediction failed")
             res["error"] = ModelError(message=str(e), status_code=500)
         finally:
-            if os.path.exists(file_path):
+            if cleanup_downloaded_file and os.path.exists(file_path):
                 os.remove(file_path)
             return res
 
     def _format_transcript(self, result):
-        if not any("speaker" in segment for segment in result["segments"]):
-            return [
-                {
-                    "speaker": None,
-                    "start": segment["start"],
-                    "end": segment["end"],
-                    "text": segment["text"].strip(),
-                }
-                for segment in result["segments"]
-            ]
-
         speakerScript = defaultdict(list)
         speakerLabel = defaultdict(str)
         

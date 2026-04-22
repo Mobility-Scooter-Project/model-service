@@ -1,0 +1,28 @@
+@baseUrl = http://10.42.0.10/api/v1/yolo
+
+# Submit a yolo job through the async API.
+# @name submitYoloJob
+POST {{baseUrl}}/jobs
+Host: models.local
+Content-Type: application/json
+
+{
+  "get_url": "https://t4.ftcdn.net/jpg/02/24/86/95/360_F_224869519_aRaeLneqALfPNBzg0xxMZXghtvBXkfIA.jpg"
+}
+
+###
+
+# Poll the job until it returns `status: succeeded`. We use the returned
+# `job_id` with `baseUrl` instead of `status_url` because `status_url` is built
+# from the request host and may resolve to `models.local`, which some local REST
+# Client setups cannot DNS-resolve.
+# @name getYoloJobStatus
+GET {{baseUrl}}/jobs/{{submitYoloJob.response.body.$.job_id}}
+Host: models.local
+
+###
+
+# Once the status response includes `result_get_url`, fetch the JSON result
+# directly from MinIO. If the URL expires, re-send `getYoloJobStatus` first to
+# mint a fresh signed URL.
+GET {{getYoloJobStatus.response.body.$.result_get_url}}

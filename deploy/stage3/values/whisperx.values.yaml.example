@@ -1,0 +1,41 @@
+# WhisperX needs an HF token for diarization. Keep that token out of Git by
+# creating a namespace Secret like `whisperx-env` before installing this release.
+modelName: whisperx
+host: models.local
+pathPrefix: /api/v1/whisperx
+
+image:
+  repository: ghcr.io/mobility-scooter-project/model-service/whisperx
+  tag: garrett-terraform-local-refactor
+  pullPolicy: Always
+
+api:
+  replicas: 1
+
+worker:
+  autoscaling:
+    minReplicas: 0
+    maxReplicas: 1
+    listLength: 1
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "1500m"
+      memory: "3Gi"
+
+workerExtraEnv:
+  COMPUTE_TYPE: float32
+  WHISPERX_BATCH_SIZE: "4"
+  WHISPERX_SIZE: tiny
+
+workerExtraSecretEnv:
+  - name: HF_TOKEN
+    secretName: whisperx-env
+    key: HF_TOKEN
+
+cache:
+  size: 20Gi
+
+hardwareProfile: cpu

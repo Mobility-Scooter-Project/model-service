@@ -1,0 +1,25 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: cilium
+  namespace: kube-system
+spec:
+  repo: https://helm.cilium.io/
+  chart: cilium
+  targetNamespace: kube-system
+  bootstrap: true
+%{ if chart_version != null && chart_version != "" ~}
+  version: ${chart_version}
+%{ endif ~}
+  valuesContent: |-
+    kubeProxyReplacement: false
+    routingMode: tunnel
+    tunnelProtocol: vxlan
+    MTU: ${cilium_mtu}
+    ipam:
+      mode: cluster-pool
+      operator:
+        clusterPoolIPv4PodCIDRList:
+          - ${pod_cidr}
+    hubble:
+      enabled: ${hubble_enabled}

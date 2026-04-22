@@ -4,13 +4,15 @@ from .. import ModelWrapper, ModelResult, ModelError
 from ultralytics import YOLO
 
 class yolo(ModelWrapper):
+    """Pose-detection model packaged as a standalone GHCR image."""
+
     def __init__(self):
-        super().__init__(
-            os.getenv("YOLO_MODEL_FILENAME", "yolo11n-pose.pt"),
-            output_fields=["boxes", "keypoints", "masks", "names"],
-        )
+        model_cache_dir = os.getenv("MODEL_CACHE_DIR", "/app/.cache")
+        model_filename = os.getenv("YOLO_MODEL_FILENAME", "yolo11n-pose.pt")
+        super().__init__(os.path.join(model_cache_dir, model_filename), output_fields=["boxes", "keypoints", "masks", "names"])
 
     def load_model(self):
+        os.makedirs(os.path.dirname(self.model_name), exist_ok=True)
         self.model = YOLO(self.model_name).to(self.device)
 
     def predict(self, input, fields = ["boxes","keypoints","masks","names"]):
@@ -20,7 +22,7 @@ class yolo(ModelWrapper):
         res = ModelResult(data=None, error=None, metadata={"device": self.device})
         
         try:
-            outputs = self.model(input, verbose=False)
+            outputs = self.model(input)
             res["data"] = []
             
             for output in outputs:
@@ -34,9 +36,9 @@ class yolo(ModelWrapper):
                             }
                             )
                 if "keypoints" in fields:
-                    result["keypoints"] = output.keypoints.data.tolist() if output.keypoints is not None else None
+                    result["keypoints"] = output.keypoints.data.tolist()
                 if "masks" in fields:
-                    result["masks"] = output.masks.data.tolist() if output.masks is not None else None
+                    result["masks"] = output.masks
                 if "names" in fields:
                     result["names"] = output.names
                 

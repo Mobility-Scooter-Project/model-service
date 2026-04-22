@@ -1,0 +1,16 @@
+apiVersion: nfd.k8s-sigs.io/v1alpha1
+kind: NodeFeatureRule
+metadata:
+  name: model-service-gpu-candidate
+spec:
+  rules:
+    - name: "nvidia-pci-device-detected"
+      labels:
+        model-service.io/gpu-candidate: "true"
+      matchFeatures:
+        - feature: pci.device
+          matchExpressions:
+            vendor:
+              op: In
+              value:
+                - "10de"
