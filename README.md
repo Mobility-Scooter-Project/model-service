@@ -27,10 +27,17 @@ For the current known-good local lab flow, use the cluster scripts under [`scrip
 * `./scripts/cluster/down-local-libvirt.sh`
   * Uninstalls Stage 3 workloads, runs `terraform destroy`, and cleans up stray libvirt domains/networks/pools that could otherwise block the next recreate.
 
+#### Current Declarative Boundary
+- **Declarative substrate**: Terraform manages the local libvirt VM substrate, including networks, volumes, domains, and NoCloud seed ISO creation through `libvirt_cloudinit_disk`.
+- **Declarative in-cluster platform**: Kubernetes manifests and the Stage 3 Helm chart define the async API, queue workers, Redis-backed autoscaling, and MinIO-backed result storage.
+- **Imperative helper layer**: [`scripts/cluster/`](./scripts/cluster) is a convenience orchestration layer for local sequencing, readiness waits, kubeconfig refresh, and initial Stage 3 installation. It is not the intended long-term control plane.
+- **Future direction**: image builds are automated today, while GitOps-style deployment automation remains a future step for Stage 3 rollout.
+
 #### Hosted Infrastructure
 Deployment automation is being standardized around the same async runtime used locally.
-* **CI/CD**: GitHub Actions automatically builds and pushes a new image for any directory changed under `src/model/`.
-* **Deployment**: Kubernetes manifests now live directly in this repo under `deploy/stage3/` and the chart under `deploy/charts/model-service-stage3/`.
+* **CI**: GitHub Actions automatically builds and pushes a new image for any directory changed under `src/model/`.
+* **Current deployment model**: Kubernetes manifests live directly in this repo under `deploy/stage3/` and the chart under `deploy/charts/model-service-stage3/`, but release application is still driven manually through `kubectl`/`helm` or the local bootstrap helper.
+* **Planned deployment model**: GitOps-style reconciliation is the intended long-term replacement for the manual Stage 3 apply/Helm workflow.
 
 &nbsp;
 

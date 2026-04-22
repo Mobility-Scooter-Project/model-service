@@ -16,15 +16,20 @@ This directory introduces a staged Terraform layout for moving the model service
 - The stack disables k3s flannel and installs Cilium through the k3s manifests directory with an explicit overlay MTU.
 - The mutable qcow2 data disk now receives a stable libvirt disk serial so the guest can safely discover it under `/dev/disk/by-id/...` before formatting it for node-local storage.
 - Stage 2 also prepares the cluster for Stage 3 by installing Node Feature Discovery, KEDA core, and the `model-service` namespace contract for GHCR-backed workloads.
-- The Stage 3 application package now lives under [`deploy/stage3/`](/home/inferno9/cpp/model-service/deploy/stage3/README.md). It adds the KEDA HTTP add-on, Traefik-to-interceptor routing, and a per-model Helm chart for synchronous scale-to-zero serving.
+- The Stage 3 application package now lives under [`deploy/stage3/`](/home/inferno9/cpp/model-service/deploy/stage3/README.md). It provides an async API + queue worker model-serving package with Redis job metadata, MinIO result blobs, and KEDA worker autoscaling.
+
+## Current Declarative Boundary
+- **Terraform/local-libvirt** is the declarative VM substrate. It owns networks, volumes, domains, cloud-init rendering, and NoCloud seed ISO creation through `libvirt_cloudinit_disk`.
+- **Stage 3** is declarative Kubernetes state applied manually today through manifests and Helm.
+- **`scripts/cluster/`** is a local orchestration helper for sequencing, readiness checks, kubeconfig refresh, and initial Stage 3 install. It is the main remaining imperative layer in the local workflow.
+- **Future direction**: a GitOps controller should eventually replace the manual Stage 3 apply/Helm steps without changing Terraform's role as the substrate layer.
 
 ## Important Notes
 - The local stack intentionally pins `dmacvicar/libvirt` to `0.8.2`. That legacy provider line is still the safer choice for deterministic address handling while the newer `0.9.x` rewrite continues catching up on DHCP reservation workflows.
 - GPU passthrough is exposed as an experimental, manual-prepared lane. Terraform does not configure host IOMMU, VFIO binding, or laptop-specific PCI isolation prerequisites.
-- KEDA HTTP add-on is intentionally not installed yet. Stage 3 ingress must route through the KEDA HTTP interceptor service instead of pointing ingress directly at model services.
 - The OpenStack stack is interface scaffolding only in this stage. It exists to lock the contract now, not to provision a real cloud yet.
 - `terraform validate` succeeds for `stacks/local-libvirt`, but `terraform plan` still depends on a live libvirt socket at the configured URI. If your host does not expose `/var/run/libvirt/libvirt-sock`, switch to `qemu:///session` or start the system libvirt daemon before planning.
-- `terraform apply` for `stacks/local-libvirt` also requires a local ISO authoring tool for `libvirt_cloudinit_disk`. On Ubuntu, install `genisoimage` so the `mkisofs` binary is available on `PATH`.
+- `terraform apply` for `stacks/local-libvirt` already uses Terraform-managed `libvirt_cloudinit_disk` resources for NoCloud seed ISO generation. On Ubuntu, install `genisoimage` so the `mkisofs` binary is available on `PATH`, because the provider shells out to that host ISO tool during apply.
 - `terraform apply` for `stacks/local-libvirt` also requires `xsltproc` on the host because the stack uses an XSLT hook to inject the stable data-disk serial and optional PCI passthrough XML into each libvirt domain definition.
 - If `terraform apply` fails with `does not support virt type 'kvm'`, your host likely lacks KVM acceleration. Set `domain_type = "qemu"` in `stacks/local-libvirt/terraform.tfvars` to use software emulation instead.
 - `cpu_mode` now defaults to `host-model`, which is compatible with both `kvm` and `qemu`. Reserve `cpu_mode = "host-passthrough"` for `kvm` hosts that need the maximum host CPU feature set for local ML workloads.

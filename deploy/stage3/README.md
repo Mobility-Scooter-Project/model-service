@@ -21,6 +21,13 @@ This package turns the local K3s lab into an async model-serving platform:
 - `../charts/model-service-stage3`
   - install one async model release per image
 
+## Current Deployment Model
+
+- The Stage 3 package itself is declarative Kubernetes state: Kustomize resources for shared platform services plus a Helm chart for per-model releases.
+- Today, that state is still applied manually with `kubectl apply -k` and `helm upgrade --install`, or sequenced through the local bootstrap helper under [`scripts/cluster/`](/home/inferno9/cpp/model-service/scripts/cluster/up-local-libvirt.sh).
+- The wrapper script is a local convenience layer for readiness and ordering. It is not the intended permanent deployment control plane.
+- Future GitOps-style reconciliation should replace the manual apply/Helm workflow without changing the Stage 3 package shape.
+
 ## Prerequisites
 
 1. Stage 1 and Stage 2 are already running on the local libvirt/K3s cluster.
@@ -42,6 +49,8 @@ That script:
 - refreshes kubeconfig from the control plane
 - applies the async Stage 3 platform
 - installs the `yolo` async release
+
+Treat this as a local bootstrap helper, not as the canonical long-term deployment mechanism.
 
 For inspection and teardown:
 
@@ -93,6 +102,8 @@ helm upgrade --install whisperx deploy/charts/model-service-stage3 \
   --namespace model-service \
   -f deploy/stage3/values/whisperx.values.local.yaml
 ```
+
+This manual `kubectl` + `helm` flow is the current deployment path. A future GitOps controller should own this reconciliation loop instead of the operator or wrapper script.
 
 ## Verify
 
