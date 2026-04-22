@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# thank you chat
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -14,6 +17,7 @@ log "applying local libvirt stack"
 terraform_cmd apply -auto-approve
 
 CONTROL_PLANE_IP="$(control_plane_ip)"
+CONTROL_PLANE_CLUSTER_IP="$(control_plane_cluster_ip)"
 WORKER_IP="$(worker_ip)"
 
 log "waiting for SSH on control plane ${CONTROL_PLANE_IP}"
@@ -29,7 +33,7 @@ ssh_vm "${CONTROL_PLANE_IP}" "sudo systemctl is-active k3s >/dev/null"
 ssh_vm "${WORKER_IP}" "sudo systemctl is-active k3s-agent >/dev/null"
 
 log "refreshing kubeconfig at ${KUBECONFIG_PATH}"
-refresh_kubeconfig "${CONTROL_PLANE_IP}"
+refresh_kubeconfig "${CONTROL_PLANE_IP}" "${CONTROL_PLANE_CLUSTER_IP}"
 
 wait_for_nodes_ready
 

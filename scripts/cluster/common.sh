@@ -86,21 +86,23 @@ kubectl_cluster_reachable() {
 
 terraform_output_instance_ip() {
   local instance_name="$1"
-  local fallback="$2"
+  local network_name="$2"
+  local fallback="$3"
 
   if ! command -v python3 >/dev/null 2>&1; then
     printf '%s\n' "${fallback}"
     return 0
   fi
 
-  TF_DIR_FOR_PY="${TF_DIR}" python3 - "${instance_name}" "${fallback}" <<'PY'
+  TF_DIR_FOR_PY="${TF_DIR}" python3 - "${instance_name}" "${network_name}" "${fallback}" <<'PY'
 import json
 import os
 import subprocess
 import sys
 
 instance_name = sys.argv[1]
-fallback = sys.argv[2]
+network_name = sys.argv[2]
+fallback = sys.argv[3]
 tf_dir = os.environ["TF_DIR_FOR_PY"]
 
 try:
@@ -110,18 +112,22 @@ try:
         stderr=subprocess.DEVNULL,
     )
     instances = json.loads(raw)
-    print(instances[instance_name]["network_interfaces"]["external"]["desired_ip"])
+    print(instances[instance_name]["network_interfaces"][network_name]["desired_ip"])
 except Exception:
     print(fallback)
 PY
 }
 
 control_plane_ip() {
-  terraform_output_instance_ip "control-plane-01" "${CONTROL_PLANE_IP:-${DEFAULT_CONTROL_PLANE_IP}}"
+  terraform_output_instance_ip "control-plane-01" "external" "${CONTROL_PLANE_IP:-${DEFAULT_CONTROL_PLANE_IP}}"
+}
+
+control_plane_cluster_ip() {
+  terraform_output_instance_ip "control-plane-01" "cluster" "10.42.0.10"
 }
 
 worker_ip() {
-  terraform_output_instance_ip "workers-cpu-01" "${WORKER_IP:-${DEFAULT_WORKER_IP}}"
+  terraform_output_instance_ip "workers-cpu-01" "external" "${WORKER_IP:-${DEFAULT_WORKER_IP}}"
 }
 
 wait_for_ssh() {
@@ -147,11 +153,12 @@ wait_for_cloud_init() {
 }
 
 refresh_kubeconfig() {
-  local host="$1"
+  local ssh_host="$1"
+  local server_endpoint="$2"
 
   mkdir -p "$(dirname "${KUBECONFIG_PATH}")"
-  ssh_vm "${host}" "sudo cat /etc/rancher/k3s/k3s.yaml" \
-    | sed "s/127.0.0.1/${host}/" \
+  ssh_vm "${ssh_host}" "sudo cat /etc/rancher/k3s/k3s.yaml" \
+    | sed "s/127.0.0.1/${server_endpoint}/" \
     > "${KUBECONFIG_PATH}"
   chmod 600 "${KUBECONFIG_PATH}"
 }
@@ -161,8 +168,24 @@ wait_for_nodes_ready() {
   kubectl_cmd wait --for=condition=Ready node --all --timeout=15m
 }
 
+wait_for_deployment() {
+  local namespace="$1"
+  local name="$2"
+  local timeout_seconds="${3:-600}"
+  local elapsed=0
+
+  while ! kubectl_cmd get deployment "${name}" -n "${namespace}" >/dev/null 2>&1; do
+    if (( elapsed >= timeout_seconds )); then
+      die "timed out waiting for deployment/${name} to appear in namespace ${namespace}"
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+}
+
 wait_for_stage3_platform() {
   log "waiting for Traefik, Redis, MinIO, and KEDA core"
+  wait_for_deployment kube-system traefik 900
   kubectl_cmd rollout status deployment/traefik -n kube-system --timeout=10m
   kubectl_cmd rollout status deployment/keda-operator -n keda --timeout=10m
   kubectl_cmd rollout status deployment/redis -n model-service --timeout=10m

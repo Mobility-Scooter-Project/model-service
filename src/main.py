@@ -14,13 +14,13 @@ from .jobs.redis_store import (
     mark_failed,
 )
 from .jobs.schemas import CreateJobRequest, CreateJobResponse, JobStatusResponse
-from .model import create_model
+from .model.catalog import get_model_output_fields
 from .storage.s3 import create_blob_store
 
 load_dotenv()
 
 settings = get_settings()
-model = create_model(settings.model_name)
+model_output_fields = get_model_output_fields(settings.model_name)
 queue_client = create_queue_client(settings.redis_url)
 job_store = create_job_store(
     settings.redis_url,
@@ -50,14 +50,14 @@ def info():
         "data": {
             "model": settings.model_name,
             "role": settings.app_role,
-            "output_fields": model.output_fields,
+            "output_fields": model_output_fields,
         }
     }
 
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED, response_model=CreateJobResponse)
 def create_model_job(body: CreateJobRequest, request: Request):
-    fields = body.fields or model.output_fields
+    fields = body.fields or model_output_fields
     job_id = str(uuid4())
     result_object_key = blob_store.make_result_key(settings.model_name, job_id)
     result_put_url = blob_store.generate_put_url(
@@ -111,7 +111,7 @@ def handle_value_error(_: Request, exc: ValueError) -> JSONResponse:
     return JSONResponse(status_code=400, content={"error": str(exc)})
 
 
-app.include_router(router)
-
 if settings.api_base_path:
     app.include_router(router, prefix=_normalized_prefix())
+else:
+    app.include_router(router)
