@@ -42,6 +42,7 @@ COPY src/utils ./src/utils
 COPY src/webhooks ./src/webhooks
 COPY src/worker ./src/worker
 COPY src/model/__init__.py ./src/model/__init__.py
+COPY src/model/catalog.py ./src/model/catalog.py
 COPY src/model/${MODEL_NAME} ./src/model/${MODEL_NAME}
 
 RUN mkdir -p /app/.cache /app/.cache/yolo /app/.config \
