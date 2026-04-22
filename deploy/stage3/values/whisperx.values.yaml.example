@@ -7,6 +7,7 @@ pathPrefix: /api/v1/whisperx
 image:
   repository: ghcr.io/mobility-scooter-project/model-service/whisperx
   tag: garrett-terraform-local-refactor
+  pullPolicy: Always
 
 api:
   replicas: 1

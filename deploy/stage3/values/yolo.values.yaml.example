@@ -6,6 +6,7 @@ pathPrefix: /api/v1/yolo
 image:
   repository: ghcr.io/mobility-scooter-project/model-service/yolo
   tag: garrett-terraform-local-refactor
+  pullPolicy: Always
 
 api:
   replicas: 1
